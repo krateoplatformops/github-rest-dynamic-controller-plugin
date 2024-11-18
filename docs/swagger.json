@@ -1,0 +1,125 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Simple wrapper around GitHub API to provide consisentency of API response for Krateo Operator Generator (KOG)",
+        "title": "GitHub Plugin API for Krateo Operator Generator (KOG)",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "Krateo Support",
+            "url": "https://krateo.io",
+            "email": "contact@krateoplatformops.io"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/repository/{owner}/{repo}/collaborators/{username}/permission": {
+            "get": {
+                "description": "Get the permission of a user in a repository",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get the permission of a user in a repository",
+                "operationId": "get-repo-permission",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Owner of the repository",
+                        "name": "owner",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Name of the repository",
+                        "name": "repo",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Username of the collaborator",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}": {
+            "get": {
+                "description": "Get the permission of a team in a repository",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get the permission of a team in a repository",
+                "operationId": "get-team-repo-permission",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization of the repository",
+                        "name": "org",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Slug of the team",
+                        "name": "team_slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Owner of the repository",
+                        "name": "owner",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Name of the repository",
+                        "name": "repo",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "Bearer": {
+            "type": "basic"
+        }
+    },
+    "externalDocs": {
+        "description": "OpenAPI",
+        "url": "https://swagger.io/resources/open-api/"
+    }
+}

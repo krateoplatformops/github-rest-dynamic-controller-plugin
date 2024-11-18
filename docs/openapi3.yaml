@@ -1,0 +1,96 @@
+openapi: 3.0.1
+info:
+  title: GitHub Plugin API for Krateo Operator Generator (KOG)
+  description: Simple wrapper around GitHub API to provide consisentency of API response
+    for Krateo Operator Generator (KOG)
+  termsOfService: http://swagger.io/terms/
+  contact:
+    name: Krateo Support
+    url: https://krateo.io
+    email: contact@krateoplatformops.io
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: "1.0"
+externalDocs:
+  description: OpenAPI
+  url: https://swagger.io/resources/open-api/
+servers:
+- url: http://localhost:8080/
+paths:
+  /repository/{owner}/{repo}/collaborators/{username}/permission:
+    get:
+      summary: Get the permission of a user in a repository
+      description: Get the permission of a user in a repository
+      operationId: get-repo-permission
+      parameters:
+      - name: owner
+        in: path
+        description: Owner of the repository
+        required: true
+        schema:
+          type: string
+      - name: repo
+        in: path
+        description: Name of the repository
+        required: true
+        schema:
+          type: string
+      - name: username
+        in: path
+        description: Username of the collaborator
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}:
+    get:
+      summary: Get the permission of a team in a repository
+      description: Get the permission of a team in a repository
+      operationId: get-team-repo-permission
+      parameters:
+      - name: org
+        in: path
+        description: Organization of the repository
+        required: true
+        schema:
+          type: string
+      - name: team_slug
+        in: path
+        description: Slug of the team
+        required: true
+        schema:
+          type: string
+      - name: owner
+        in: path
+        description: Owner of the repository
+        required: true
+        schema:
+          type: string
+      - name: repo
+        in: path
+        description: Name of the repository
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+components:
+  securitySchemes:
+    Bearer:
+      type: http
+      scheme: basic
+x-original-swagger-version: "2.0"
