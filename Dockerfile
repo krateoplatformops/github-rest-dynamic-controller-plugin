@@ -17,7 +17,7 @@ RUN go mod download
 
 # COPY apis/ apis/
 COPY internal/ internal/
-COPT docs/ docs/
+COPY docs/ docs/
 COPY main.go main.go
 
 # Build
