@@ -14,6 +14,7 @@ import (
 	_ "github.com/krateoplatformops/github-rest-dynamic-controller-plugin/docs"
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/env"
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers"
+	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/health"
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/repo"
 	teamrepo "github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/teamRepo"
 	"github.com/rs/zerolog"
@@ -46,9 +47,9 @@ var (
 // @externalDocs.description  OpenAPI
 // @externalDocs.url          https://swagger.io/resources/open-api/
 func main() {
-	debugOn := flag.Bool("debug", env.Bool("EVENTSSE_DEBUG", true), "dump verbose output")
-	port := flag.Int("port", env.Int("EVENTSSE_PORT", 8080), "port to listen on")
-	noColor := flag.Bool("no-color", env.Bool("EVENTSSE_NO_COLOR", false), "disable color output")
+	debugOn := flag.Bool("debug", env.Bool("DEBUG", true), "dump verbose output")
+	port := flag.Int("port", env.Int("PORT", 8080), "port to listen on")
+	noColor := flag.Bool("no-color", env.Bool("NO_COLOR", false), "disable color output")
 
 	flag.Parse()
 
@@ -73,11 +74,18 @@ func main() {
 		Client: http.DefaultClient,
 	}
 
+	// Health status flags
 	healthy := int32(0)
+	ready := int32(0)
 
+	// Business logic routes
 	mux.Handle("GET /repository/{owner}/{repo}/collaborators/{username}/permission", repo.GetRepo(opts))
 	mux.Handle("GET /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}", teamrepo.GetTeamRepo(opts))
 	mux.Handle("/swagger/", httpSwagger.WrapHandler)
+
+	// Kubernetes health check endpoints
+	mux.HandleFunc("GET /healthz", health.LivenessHandler(&healthy))
+	mux.HandleFunc("GET /readyz", health.ReadinessHandler(&ready, opts.Client))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", *port),
@@ -98,7 +106,10 @@ func main() {
 	defer stop()
 
 	go func() {
+		// Mark as healthy and ready when server starts
 		atomic.StoreInt32(&healthy, 1)
+		atomic.StoreInt32(&ready, 1)
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msgf("could not listen on %s", server.Addr)
 		}
@@ -111,7 +122,9 @@ func main() {
 	// Restore default behavior on the interrupt signal and notify user of shutdown.
 	stop()
 	log.Info().Msg("server is shutting down gracefully, press Ctrl+C again to force")
-	atomic.StoreInt32(&healthy, 0)
+
+	// Mark as not ready during shutdown, but keep liveness active for graceful shutdown
+	atomic.StoreInt32(&ready, 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -121,5 +134,7 @@ func main() {
 		log.Fatal().Err(err).Msg("server forced to shutdown")
 	}
 
+	// Mark as unhealthy after shutdown
+	atomic.StoreInt32(&healthy, 0)
 	log.Info().Msg("server gracefully stopped")
 }

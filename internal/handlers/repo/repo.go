@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers"
+	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/utils"
 )
 
 func GetRepo(opts handlers.HandlerOptions) handlers.Handler {
@@ -42,6 +43,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.Log.Println(err)
 		w.Write([]byte(fmt.Sprint("Error: ", err)))
+		return
 	}
 
 	if len(auth_header) > 0 {
@@ -52,6 +54,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.Log.Print(err)
 		w.Write([]byte(fmt.Sprint("Error: ", err)))
+		return
 	}
 
 	if resp.StatusCode == http.StatusNoContent {
@@ -60,6 +63,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.Log.Print(err)
 			w.Write([]byte(fmt.Sprint("Error: ", err)))
+			return
 		}
 
 		if len(auth_header) > 0 {
@@ -70,16 +74,40 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.Log.Print(err)
 			w.Write([]byte(fmt.Sprint("Error: ", err)))
+			return
 		}
 
-		// read response body
+		// Read and flatten response body
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			h.Log.Print(err)
 			w.Write([]byte(fmt.Sprint("Error: ", err)))
+			return
 		}
 
-		w.Write(body)
+		// Flatten the response
+		flattenedBody, err := utils.FlattenGitHubUserPermissionBytes(body)
+		if err != nil {
+			h.Log.Print("Failed to flatten response:", err)
+			h.Log.Print("Returning original response body")
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(body)
+			return // Early return
+		}
+
+		// Correct the permission field
+		correctedBody, err := utils.CorrectGitHubUserPermissionField(flattenedBody)
+		if err != nil {
+			h.Log.Print("Failed to correct permission field:", err)
+			h.Log.Print("Returning flattened response body")
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(flattenedBody)
+			return // Early return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(correctedBody)
+
 		h.Log.Print("Successfully called", req.URL)
 		return
 	}
