@@ -113,7 +113,7 @@ func FlattenGitHubUserPermissionBytes(body []byte) ([]byte, error) {
 	return GitHubUserPermissionFlattener.FlattenBytes(body)
 }
 
-// utility function to deal with GitHub permissions discrepancies in the API responses
+// The following are utility functions to deal with GitHub permissions discrepancies in the API responses
 
 // GitHubPermissions represents the permissions object from GitHub API
 type GitHubPermissions struct {

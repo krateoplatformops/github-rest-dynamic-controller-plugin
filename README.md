@@ -15,13 +15,63 @@ This web service addresses inconsistencies in the GitHub API's. This Webservice 
 
 ## API
 
-1. **Get User Permission in a Repository**
-    - **Endpoint:** `/repository/{owner}/{repo}/collaborators/{username}/permission`
-    - **Description:** Retrieves the permission level of a specified user in a given repository. The endpoint extracts the `owner`, `repo`, and `username` from the request path, checks if the user is a collaborator, and then fetches the user's permission level from the GitHub API. The result is returned in the response body.
+### 1) Get User Permission in a Repository
 
-2. **Get Team Permission in a Repository**
-    - **Endpoint:** `/teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}`
-    - **Description:** Retrieves the permission level of a specified team in a given repository. The endpoint extracts the `organization`, `team_slug`, `owner`, and `repo` from the request path, logs the API call, and forwards the request to the GitHub API with the necessary headers. The response from GitHub is processed to adjust the repository permissions before being returned to the client.
+- **Endpoint:** `/repository/{owner}/{repo}/collaborators/{username}/permission`
+- **Description:** Retrieves the permission level of a specified user in a given repository. The endpoint extracts the `owner`, `repo`, and `username` from the request path, checks if the user is a collaborator, and then fetches the user's permission level from the GitHub API. The result is returned in the response body.
+
+Sample response:
+```json
+{
+  "html_url":"<REDACTED>",
+  "id": 12345678,
+  "permission":"admin",
+  "permissions":{
+    "admin":true,
+    "maintain":true,
+    "pull":true,
+    "push":true,
+    "triage":true
+  },
+  "role_name":"admin",
+  "user":{
+    "avatar_url":"<REDACTED>",
+    "events_url":"<REDACTED>",
+    "followers_url":"<REDACTED>",
+    "following_url":"<REDACTED>",
+    "gists_url":"<REDACTED>",
+    "gravatar_id":"<REDACTED>",
+    "html_url":"<REDACTED>",
+    "id":12345678,
+    "login":"<REDACTED>",
+    "node_id":"<REDACTED>",
+    "organizations_url":"<REDACTED>",
+    "permissions":{
+      "admin":true,
+      "maintain":true,
+      "pull":true,
+      "push":true,
+      "triage":true
+    },
+    "received_events_url":"<REDACTED>",
+    "repos_url":"<REDACTED>",
+    "role_name":"admin",
+    "site_admin":false,
+    "starred_url":"<REDACTED>",
+    "subscriptions_url":"<REDACTED>",
+    "type":"User",
+    "url":"<REDACTED>",
+    "user_view_type":"public"
+  }
+}
+```
+
+Note: since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the more detailed `permissions` object, which includes all possible permissions {`admin`, `maintain`, `push`, `triage`, `pull`} and their boolean values, choosing the more powerful permission as the `permission` field at the root level of the response body.
+
+### 2) Get Team Permission in a Repository
+
+- **Endpoint:** `/teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}`
+- **Description:** Retrieves the permission level of a specified team in a given repository. The endpoint extracts the `organization`, `team_slug`, `owner`, and `repo` from the request path, logs the API call, and forwards the request to the GitHub API with the necessary headers. The response from GitHub is processed to adjust the repository permissions before being returned to the client.
 
 For more detailed information about all the API endpoints, please refer to the Swagger documentation available at `/swagger/index.html`.
 

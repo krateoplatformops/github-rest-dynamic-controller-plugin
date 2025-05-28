@@ -77,7 +77,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Read and flatten response body
+		// Read response body
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			h.Log.Print(err)
