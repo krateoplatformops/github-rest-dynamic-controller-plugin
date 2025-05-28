@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers"
-	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/utils"
 )
 
 func GetRepo(opts handlers.HandlerOptions) handlers.Handler {
@@ -86,7 +85,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Flatten the response
-		flattenedBody, err := utils.FlattenGitHubUserPermissionBytes(body)
+		flattenedBody, err := FlattenGitHubUserPermissionBytes(body)
 		if err != nil {
 			h.Log.Print("Failed to flatten response:", err)
 			h.Log.Print("Returning original response body")
@@ -96,7 +95,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Correct the permission field
-		correctedBody, err := utils.CorrectGitHubUserPermissionField(flattenedBody)
+		correctedBody, err := CorrectGitHubUserPermissionField(flattenedBody)
 		if err != nil {
 			h.Log.Print("Failed to correct permission field:", err)
 			h.Log.Print("Returning flattened response body")
