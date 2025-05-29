@@ -59,6 +59,11 @@ func (rf *ResponseFlattener) FlattenBytes(body []byte) ([]byte, error) {
 
 // extractValue extracts a value from nested map using dot notation path
 func (rf *ResponseFlattener) extractValue(data map[string]interface{}, path string) (interface{}, error) {
+
+	if path == "" {
+		return nil, fmt.Errorf("empty path not allowed")
+	}
+
 	parts := strings.Split(path, ".")
 	current := data
 
