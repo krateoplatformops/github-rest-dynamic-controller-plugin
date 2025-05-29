@@ -89,6 +89,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.Log.Print("Failed to flatten response:", err)
 			h.Log.Print("Returning original response body")
+			h.Log.Print("Original body:", string(body))
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(body)
 			return // Early return
@@ -99,6 +100,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.Log.Print("Failed to correct permission field:", err)
 			h.Log.Print("Returning flattened response body")
+			h.Log.Print("Flattened body:", string(flattenedBody))
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(flattenedBody)
 			return // Early return
@@ -107,6 +109,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(correctedBody)
 
+		h.Log.Printf("Corrected body: %s", string(correctedBody))
 		h.Log.Print("Successfully called", req.URL)
 		return
 	}

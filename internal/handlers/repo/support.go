@@ -31,37 +31,18 @@ func FlattenGitHubUserPermissionBytes(body []byte) ([]byte, error) {
 	return GitHubUserPermissionFlattener.FlattenBytes(body)
 }
 
-// The following are utility functions to deal with GitHub permissions discrepancies in the API responses
+// The following is a utility function to deal with GitHub permissions discrepancies in the API responses
 
-// GitHubPermissions represents the permissions object from GitHub API
-type GitHubPermissions struct {
-	Admin    bool `json:"admin"`
-	Maintain bool `json:"maintain"`
-	Pull     bool `json:"pull"`
-	Push     bool `json:"push"`
-	Triage   bool `json:"triage"`
-}
+/*
+Discrepancies for a Collaborator:
 
-// DetermineCorrectPermission determines the correct permission level based on GitHub permissions
-func DetermineCorrectPermission(perms GitHubPermissions) string {
-	// Check in order of precedence: admin > maintain > push > triage > pull
-	if perms.Admin {
-		return "admin"
-	}
-	if perms.Maintain {
-		return "maintain"
-	}
-	if perms.Push {
-		return "push"
-	}
-	if perms.Triage {
-		return "triage"
-	}
-	if perms.Pull {
-		return "pull"
-	}
-	return "none" // fallback case
-}
+'permission' in CR		'permission' in GitHub RESPONSE		'role_name' in GitHub RESPONSE
+pull              		read                                read
+push                  	write                               write
+admin                 	admin                               admin
+maintain              	write                               maintain
+triage                	read                                triage
+*/
 
 // CorrectGitHubPermissionField corrects the permission field in GitHub API responses
 func CorrectGitHubUserPermissionField(body []byte) ([]byte, error) {
@@ -70,26 +51,38 @@ func CorrectGitHubUserPermissionField(body []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	// Extract permissions object
-	permissionsInterface, exists := data["permissions"]
+	// change the permission filed based on the role_name
+	// but if the role_name is read, then set the permission to pull
+	// and if the role_name is write, then set the permission to push
+	roleName, exists := data["role_name"].(string)
 	if !exists {
-		return body, nil // No permissions field to correct
+		return body, nil // No roleName field to correct
+	}
+	var permission string
+	switch roleName {
+	case "read":
+		permission = "pull"
+	case "write":
+		permission = "push"
+	case "admin":
+		permission = "admin"
+	case "maintain":
+		permission = "maintain"
+	case "triage":
+		permission = "triage"
+	default:
+		permission = roleName // Use the roleName as is if it doesn't match any known roles
+	}
+	if permission == "" {
+		return body, nil // No permission to correct
 	}
 
-	// Convert permissions to our struct
-	permissionsBytes, err := json.Marshal(permissionsInterface)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal permissions: %w", err)
+	// Update the permission field in the data map
+	if data["permission"] == nil {
+		data["permission"] = make(map[string]interface{})
 	}
+	data["permission"] = permission
 
-	var permissions GitHubPermissions
-	if err := json.Unmarshal(permissionsBytes, &permissions); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal permissions: %w", err)
-	}
-
-	// Determine correct permission and update
-	correctPermission := DetermineCorrectPermission(permissions)
-	data["permission"] = correctPermission
-
+	// Marshal the updated data back to JSON
 	return json.Marshal(data)
 }
