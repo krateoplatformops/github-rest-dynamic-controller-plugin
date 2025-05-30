@@ -85,7 +85,7 @@ func main() {
 
 	// Kubernetes health check endpoints
 	mux.HandleFunc("GET /healthz", health.LivenessHandler(&healthy))
-	mux.HandleFunc("GET /readyz", health.ReadinessHandler(&ready, opts.Client))
+	mux.HandleFunc("GET /readyz", health.ReadinessHandler(&ready, opts.Client.(*http.Client)))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", *port),

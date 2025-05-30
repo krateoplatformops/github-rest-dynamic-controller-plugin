@@ -38,6 +38,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	auth_header := r.Header.Get("Authorization")
 
+	// Check if user is a collaborator
 	req, err := http.NewRequest("GET", "https://api.github.com/repos/"+owner+"/"+repo+"/collaborators/"+username, nil)
 	if err != nil {
 		h.Log.Println(err)
@@ -56,6 +57,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If user IS a collaborator (StatusNoContent = 204)
 	if resp.StatusCode == http.StatusNoContent {
 		h.Log.Print("User is a collaborator")
 		req, err := http.NewRequest("GET", "https://api.github.com/repos/"+owner+"/"+repo+"/collaborators/"+username+"/permission", nil)
@@ -75,6 +77,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(fmt.Sprint("Error: ", err)))
 			return
 		}
+
+		// Return 200 OK with permission data
 
 		// Read response body
 		body, err := io.ReadAll(resp.Body)
@@ -114,6 +118,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If user is NOT a collaborator, return the error status from GitHub (401 Unauthorized)
+	// Also if user does not exist, GitHub returns 401 Unauthorized
 	h.Log.Println("User is not a collaborator", resp.StatusCode, req.URL)
 
 	w.WriteHeader(resp.StatusCode)
