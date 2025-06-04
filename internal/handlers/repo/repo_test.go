@@ -1,7 +1,6 @@
 package repo
 
 import (
-	//"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +14,8 @@ import (
 )
 
 // mockHTTPClient implements http.Client's Do method for testing
+// this is needed for external API calls in the handler
+// it allows us to simulate responses and errors without making real HTTP requests (e.g., for GitHub API calls).
 type mockHTTPClient struct {
 	responses map[string]*http.Response
 	errors    map[string]error
@@ -86,17 +87,6 @@ func (m *mockHTTPClient) reset() {
 	m.responses = make(map[string]*http.Response)
 	m.errors = make(map[string]error)
 	m.requests = make([]*http.Request, 0)
-}
-
-// mockableHandler allows us to inject a mock client for testing
-type mockableHandler struct {
-	*handler
-	mockClient *mockHTTPClient
-}
-
-// Do implements the http.Client Do method for mockableHandler
-func (h *mockableHandler) Do(req *http.Request) (*http.Response, error) {
-	return h.mockClient.Do(req)
 }
 
 // createTestHandler creates a handler instance for testing with a mock client
@@ -180,103 +170,241 @@ func TestGetRepo(t *testing.T) {
 	})
 }
 
-func TestHandler_ServeHTTP_PrivateRepoUserIsCollaborator(t *testing.T) {
+func TestHandler_ServeHTTP(t *testing.T) {
 	tests := []struct {
-		name           string
-		authHeader     string
-		permissionResp string
-		expectedStatus int
+		name                 string
+		owner                string
+		repo                 string
+		username             string
+		authHeader           string
+		setupMock            func(*mockHTTPClient)
+		expectedStatus       int
+		expectedContentType  string
+		expectedBodyContains string
+		expectedRequestCount int
+		verifyRequests       func(t *testing.T, mockClient *mockHTTPClient)
 	}{
 		{
-			name:           "with auth header",
-			authHeader:     testToken,
-			permissionResp: validPermissionResp,
-			expectedStatus: http.StatusOK,
-		},
-		//{
-		//	name:           "without auth header",
-		//	authHeader:     "",
-		//	permissionResp: validPermissionResp, // to be verified
-		//	expectedStatus: http.StatusOK, // to be verified
-		//},
-		{
-			name:       "pull permission response",
+			name:       "successful permission check with admin role",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
 			authHeader: testToken,
-			permissionResp: `{
-				"permission": "read",
-				"user": {
-					"login": "testuser",
-					"id": 12345,
-					"permissions": {
-						"pull": true
-					}
+			setupMock: func(mockClient *mockHTTPClient) {
+				// First call: check if user is collaborator (GitHub returns 204)
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNoContent, "")
+				// Second call: get permission (returns permission data)
+				mockClient.setResponse(permissionExternalURL, http.StatusOK, validPermissionResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"admin"`,
+			expectedRequestCount: 2,
+			verifyRequests: func(t *testing.T, mockClient *mockHTTPClient) {
+				if mockClient.getRequestCount() != 2 {
+					t.Errorf("Expected 2 requests, got %d", mockClient.getRequestCount())
 				}
-			}`,
-			expectedStatus: http.StatusOK,
+
+				// Verify first request (collaborator check)
+				req1 := mockClient.requests[0]
+				if req1.URL.String() != collaboratorExternalURL {
+					t.Errorf("First request URL = %s, want %s", req1.URL.String(), collaboratorExternalURL)
+				}
+				if req1.Header.Get("Authorization") != testToken {
+					t.Errorf("First request Authorization header = %s, want %s", req1.Header.Get("Authorization"), testToken)
+				}
+
+				// Verify second request (permission check)
+				req2 := mockClient.requests[1]
+				if req2.URL.String() != permissionExternalURL {
+					t.Errorf("Second request URL = %s, want %s", req2.URL.String(), permissionExternalURL)
+				}
+				if req2.Header.Get("Authorization") != testToken {
+					t.Errorf("Second request Authorization header = %s, want %s", req2.Header.Get("Authorization"), testToken)
+				}
+			},
+		},
+		{
+			name:       "successful permission check with `read` permission from GitHub (corrected to `pull`)",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNoContent, "")
+				readPermissionResp := `{
+						"permission": "read",
+						"user": {
+							"login": "testuser",
+							"id": 12345,
+							"html_url": "https://github.com/testuser",
+							"permissions": {
+								"admin": false,
+								"maintain": false,
+								"push": false,
+								"triage": true,
+								"pull": true
+							}
+						},
+						"role_name": "read"
+					}`
+				mockClient.setResponse(permissionExternalURL, http.StatusOK, readPermissionResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"pull"`, // we expect the permission to be corrected to `pull`
+			expectedRequestCount: 2,
+		},
+		{
+			name:       "successful permission check with `write` permission from GitHub (corrected to `push`)",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNoContent, "")
+				writePermissionResp := `{
+						"permission": "write",
+						"user": {
+							"login": "testuser",
+							"id": 12345,
+							"html_url": "https://github.com/testuser",
+							"permissions": {
+								"admin": false,
+								"maintain": false,
+								"push": true,
+								"triage": true,
+								"pull": true
+							}
+						},
+						"role_name": "write"
+					}`
+				mockClient.setResponse(permissionExternalURL, http.StatusOK, writePermissionResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"push"`, // we expect the permission to be corrected to `push`
+			expectedRequestCount: 2,
+		},
+		{
+			name:       "successful permission check with maintain role",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNoContent, "")
+				maintainPermissionResp := `{
+					"permission": "write",
+					"user": {
+						"login": "testuser",
+						"id": 12345,
+						"html_url": "https://github.com/testuser",
+						"permissions": {
+							"admin": false,
+							"maintain": true,
+							"push": true,
+							"triage": true,
+							"pull": true
+						}
+					},
+					"role_name": "maintain"
+				}`
+				mockClient.setResponse(permissionExternalURL, http.StatusOK, maintainPermissionResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"maintain"`,
+			expectedRequestCount: 2,
+		},
+		{
+			name:       "successful permission check with triage role",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNoContent, "")
+				triagePermissionResp := `{
+					"permission": "read",
+					"user": {
+						"login": "testuser",
+						"id": 12345,
+						"html_url": "https://github.com/testuser",
+						"permissions": {
+							"admin": false,
+							"maintain": false,
+							"push": false,
+							"triage": true,
+							"pull": true
+						}
+					},
+					"role_name": "triage"
+				}`
+				mockClient.setResponse(permissionExternalURL, http.StatusOK, triagePermissionResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"triage"`,
+			expectedRequestCount: 2,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup
 			mockClient := newMockHTTPClient()
-
-			// Set up mock responses from GitHub API (2 calls expected)
-			mockClient.setResponse(collaboratorExternalURL, http.StatusNoContent, "")
-			mockClient.setResponse(permissionExternalURL, http.StatusOK, tt.permissionResp)
+			tt.setupMock(mockClient)
 
 			handler := createTestHandlerWithSilentLog(mockClient)
 
-			req := httptest.NewRequest("GET", "/repository/"+testOwner+"/"+testRepo+"/collaborators/"+testUsername+"/permission", nil)
-			req.SetPathValue("owner", testOwner)
-			req.SetPathValue("repo", testRepo)
-			req.SetPathValue("username", testUsername)
+			// Create a proper ServeMux with the pattern matching
+			mux := http.NewServeMux()
+			mux.Handle("GET /repository/{owner}/{repo}/collaborators/{username}/permission", handler)
 
+			// Create request with the proper path
+			path := fmt.Sprintf("/repository/%s/%s/collaborators/%s/permission", tt.owner, tt.repo, tt.username)
+			req := httptest.NewRequest("GET", path, nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
 
-			w := httptest.NewRecorder()
-			handler.ServeHTTP(w, req)
+			// Create response recorder
+			rr := httptest.NewRecorder()
 
-			// Verify response status
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status code %d, got %d", tt.expectedStatus, w.Code)
+			// Execute through the mux so path values are properly set
+			mux.ServeHTTP(rr, req)
+
+			// Verify status code
+			if rr.Code != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v", rr.Code, tt.expectedStatus)
 			}
 
-			// Verify content type
-			expectedContentType := "application/json"
-			if ct := w.Header().Get("Content-Type"); ct != expectedContentType {
-				t.Errorf("Expected Content-Type %s, got %s", expectedContentType, ct)
-			}
-
-			// Verify 2 External API calls were made (mockClient should have 2 requests)
-			if mockClient.getRequestCount() != 2 {
-				t.Errorf("Expected 2 API calls, got %d", mockClient.getRequestCount())
-			}
-
-			// Verify both requests have correct auth header
-			for i, req := range mockClient.requests {
-				expectedAuth := tt.authHeader
-				if actualAuth := req.Header.Get("Authorization"); actualAuth != expectedAuth {
-					t.Errorf("Request %d: Expected Authorization header '%s', got '%s'", i, expectedAuth, actualAuth)
+			// Verify content type if expected
+			if tt.expectedContentType != "" {
+				contentType := rr.Header().Get("Content-Type")
+				if contentType != tt.expectedContentType {
+					t.Errorf("handler returned wrong content type: got %v want %v", contentType, tt.expectedContentType)
 				}
 			}
 
-			// Verify response contains expected fields (after flattening)
-			responseBody := w.Body.String()
-			if !strings.Contains(responseBody, `"permission"`) {
-				t.Error("Expected 'permission' field in response")
+			// Verify response body contains expected content
+			if tt.expectedBodyContains != "" {
+				body := rr.Body.String()
+				if !strings.Contains(body, tt.expectedBodyContains) {
+					t.Errorf("handler response body does not contain expected content.\nGot: %s\nWant to contain: %s", body, tt.expectedBodyContains)
+				}
+			}
+
+			// Verify request count
+			if mockClient.getRequestCount() != tt.expectedRequestCount {
+				t.Errorf("expected %d requests, got %d", tt.expectedRequestCount, mockClient.getRequestCount())
+			}
+
+			// Run custom request verification if provided
+			if tt.verifyRequests != nil {
+				tt.verifyRequests(t, mockClient)
 			}
 		})
 	}
 }
-
-// To be added:
-// PrivateRepoUserIsNotCollaborator
-// PublicRepoUserIsCollaborator
-// PublicRepoUserIsNotCollaborator
-// HTTPClientErrors
-// InvalidJSON
-// PathParameterVariations
-// AuthorizationHeaders
-// ResponseFlattening

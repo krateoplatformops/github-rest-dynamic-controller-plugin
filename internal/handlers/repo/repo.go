@@ -38,7 +38,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	auth_header := r.Header.Get("Authorization")
 
-	// Check if user is a collaborator
+	// 1. Check if user is a collaborator
 	req, err := http.NewRequest("GET", "https://api.github.com/repos/"+owner+"/"+repo+"/collaborators/"+username, nil)
 	if err != nil {
 		h.Log.Println(err)
@@ -57,7 +57,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If user IS a collaborator (StatusNoContent = 204)
+	// 2. If user is a collaborator (StatusNoContent = 204), get the permission
 	if resp.StatusCode == http.StatusNoContent {
 		h.Log.Print("User is a collaborator")
 		req, err := http.NewRequest("GET", "https://api.github.com/repos/"+owner+"/"+repo+"/collaborators/"+username+"/permission", nil)
@@ -99,7 +99,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return // Early return
 		}
 
-		// Correct the permission field
+		// Correct the permission field due to GitHub API inconsistency
 		correctedBody, err := CorrectGitHubUserPermissionField(flattenedBody)
 		if err != nil {
 			h.Log.Print("Failed to correct permission field:", err)
