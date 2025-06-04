@@ -66,7 +66,7 @@ Sample response:
 }
 ```
 
-Note: since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the more detailed `permissions` object, which includes all possible permissions {`admin`, `maintain`, `push`, `triage`, `pull`} and their boolean values, choosing the more powerful permission as the `permission` field at the root level of the response body.
+Note: since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the `role_name` field which instead can be {`admin`, `maintain`, `push`, `triage`, `pull`}. The `permissions` field is also included to provide detailed permission levels.
 
 ### 2) Get Team Permission in a Repository
 
