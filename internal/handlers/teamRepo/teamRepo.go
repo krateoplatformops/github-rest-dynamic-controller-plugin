@@ -115,5 +115,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(b)
 
+	w.Header().Set("Content-Type", "application/json")
+
 	return
 }
