@@ -30,7 +30,7 @@ type handler struct {
 // @Param owner path string true "Owner of the repository"
 // @Param repo path string true "Name of the repository"
 // @Produce json
-// @Success 200 {object} map[string]any
+// @Success 200 {object} teamrepo.TeamRepoPermissions
 // @Router /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo} [get]
 // GET /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +43,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	auth_header := r.Header.Get("Authorization")
 
+	// https://docs.github.com/en/rest/teams/teams?apiVersion=2022-11-28#check-team-permissions-for-a-repository
 	// /orgs/krateoplatformops/teams/krateo-team/repos/krateoplatformops/azuredevops-oas3
 	req, err := http.NewRequest("GET", "https://api.github.com/orgs/"+org+"/teams/"+teamSlug+"/repos/"+owner+"/"+repo, nil)
 	if err != nil {

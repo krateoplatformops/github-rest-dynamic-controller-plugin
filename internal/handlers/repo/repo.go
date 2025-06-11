@@ -27,7 +27,7 @@ type handler struct {
 // @Param repo path string true "Name of the repository"
 // @Param username path string true "Username of the collaborator"
 // @Produce json
-// @Success 200 {object} map[string]any
+// @Success 200 {object} repo.RepoPermissions
 // @Router /repository/{owner}/{repo}/collaborators/{username}/permission [get]
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	owner := r.PathValue("owner")
@@ -118,7 +118,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If user is NOT a collaborator, return the error status from GitHub (401 Unauthorized)
+	// Otherwise, if user is NOT a collaborator, return the error status from GitHub (401 Unauthorized)
 	// Also if user does not exist, GitHub returns 401 Unauthorized
 	h.Log.Println("User is not a collaborator", resp.StatusCode, req.URL)
 

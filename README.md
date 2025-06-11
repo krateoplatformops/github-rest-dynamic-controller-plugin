@@ -23,10 +23,10 @@ This web service addresses inconsistencies in the GitHub API's. This Webservice 
 Sample response:
 ```json
 {
-  "html_url":"<REDACTED>",
-  "id": 12345678,
-  "permission":"admin",
-  "permissions":{
+  "html_url":"<REDACTED>",  // Adjusted field
+  "id": 12345678,           // Adjusted field
+  "permission":"admin",     // Adjusted field
+  "permissions":{           // Adjusted field
     "admin":true,
     "maintain":true,
     "pull":true,
@@ -72,6 +72,95 @@ Note: since the root level field `permission` in the GitHub API response can be 
 
 - **Endpoint:** `/teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}`
 - **Description:** Retrieves the permission level of a specified team in a given repository. The endpoint extracts the `organization`, `team_slug`, `owner`, and `repo` from the request path, logs the API call, and forwards the request to the GitHub API with the necessary headers. The response from GitHub is processed to adjust the repository permissions before being returned to the client.
+
+Sample response:
+```json
+{
+  "allow_auto_merge":false,
+  "allow_forking":false,
+  "allow_merge_commit":true,
+  "allow_rebase_merge":true,
+  "allow_squash_merge":true,
+  "archive_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/{archive_format}{/ref}",
+  "archived":false,
+  "assignees_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/assignees{/user}",
+  "blobs_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/git/blobs{/sha}",
+  "branches_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/branches{/branch}",
+  "clone_url":"https://github.com/krateoplatformops-test/test-teamrepo.git",
+  "collaborators_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/collaborators{/collaborator}",
+  "comments_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/comments{/number}",
+  "commits_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/commits{/sha}",
+  "compare_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/compare/{base}...{head}",
+  "contents_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/contents/{+path}",
+  "contributors_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/contributors",
+  "created_at":"2025-06-10T17:15:43Z",
+  "default_branch":"main",
+  "delete_branch_on_merge":false,
+  "deployments_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/deployments",
+  "description":null,
+  "disabled":false,
+  "downloads_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/downloads",
+  "events_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/events",
+  "fork":false,
+  "forks":0,
+  "forks_count":0,
+  "forks_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/forks",
+  "full_name":"krateoplatformops-test/test-teamrepo",
+  "git_commits_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/git/commits{/sha}",
+  "git_refs_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/git/refs{/sha}",
+  "git_tags_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/git/tags{/sha}",
+  "git_url":"git://github.com/krateoplatformops-test/test-teamrepo.git",
+  "has_downloads":true,
+  "has_issues":true,
+  "has_pages":false,
+  "has_projects":true,
+  "has_wiki":false,
+  "homepage":null,
+  "hooks_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/hooks",
+  "html_url":"https://github.com/krateoplatformops-test/test-teamrepo",
+  "id":999717066,
+  "issue_comment_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/issues/comments{/number}",
+  "issue_events_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/issues/events{/number}",
+  "issues_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/issues{/number}",
+  "keys_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/keys{/key_id}",
+  "labels_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/labels{/name}",
+  "language":null,
+  "languages_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/languages",
+  "license":null,
+  "merges_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/merges",
+  "milestones_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/milestones{/number}",
+  "mirror_url":null,
+  "name":"test-teamrepo",
+  "node_id":"R_kgDOO5Z4yg",
+  "notifications_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/notifications{?since,all,participating}",
+  "open_issues":0,
+  "open_issues_count":0,
+  "owner":"krateoplatformops-test", // Adjusted field
+  "permission":"pull",              // Adjusted field
+  "private":true,
+  "pulls_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/pulls{/number}",
+  "pushed_at":"2025-06-10T17:15:43Z",
+  "releases_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/releases{/id}",
+  "role_name":"read",
+  "size":0,
+  "ssh_url":"git@github.com:krateoplatformops-test/test-teamrepo.git",
+  "stargazers_count":0,
+  "stargazers_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/stargazers",
+  "statuses_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/statuses/{sha}",
+  "subscribers_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/subscribers",
+  "subscription_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/subscription",
+  "svn_url":"https://github.com/krateoplatformops-test/test-teamrepo",
+  "tags_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/tags",
+  "teams_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/teams",
+  "topics":[],
+  "trees_url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo/git/trees{/sha}",
+  "updated_at":"2025-06-10T17:15:43Z",
+  "url":"https://api.github.com/repos/krateoplatformops-test/test-teamrepo",
+  "visibility":"private",
+  "watchers":0,
+  "watchers_count":0
+}   
+```
 
 For more detailed information about all the API endpoints, please refer to the Swagger documentation available at `/swagger/index.html`.
 
