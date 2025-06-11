@@ -1,17 +1,16 @@
 # Krateo Github Plugin for `rest-dynamic-controller`
 
-This web service addresses inconsistencies in the GitHub API's. This Webservice is written for [`rest-dynamic-controller`](https://github.com/krateoplatformops/rest-dynamic-controller/), the dynamic controller instaciated by [`oasgen-provider`](https://github.com/krateoplatformops/oasgen-provider).
+This web service addresses some inconsistencies in the GitHub API's. 
+This web service is written for [`rest-dynamic-controller`](https://github.com/krateoplatformops/rest-dynamic-controller/), the dynamic controller instaciated by [`oasgen-provider`](https://github.com/krateoplatformops/oasgen-provider).
 
 ## Summary
 
-- [Krateo Github Plugin for `rest-dynamic-controller`](#krateo-github-plugin-for-rest-dynamic-controller)
-  - [Summary](#summary)
-  - [Overview](#overview)
-  - [API](#api)
-  - [Examples](#examples)
-    - [Receiving notifications](#receiving-notifications)
-    - [Listing last events](#listing-last-events)
-  - [Configuration](#configuration)
+- [Summary](#summary)
+- [API](#api)
+  - [1) Get User Permission in a Repository](#1-get-user-permission-in-a-repository)
+  - [2) Get Team Permission in a Repository](#2-get-team-permission-in-a-repository)
+- [Swagger Documentation](#swagger-documentation)
+- [Authentication](#authentication)
 
 ## API
 
@@ -66,7 +65,8 @@ Sample response:
 }
 ```
 
-Note: since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the `role_name` field which instead can be {`admin`, `maintain`, `push`, `triage`, `pull`}. The `permissions` field is also included to provide detailed permission levels.
+> [!NOTE]  
+> Since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the `role_name` field which instead can be {`admin`, `maintain`, `push`, `triage`, `pull`}. The `permissions` field is also included at root level to provide detailed permission levels.
 
 ### 2) Get Team Permission in a Repository
 
@@ -162,7 +162,13 @@ Sample response:
 }   
 ```
 
-For more detailed information about all the API endpoints, please refer to the Swagger documentation available at `/swagger/index.html`.
+> [!NOTE]  
+> Since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the `role_name` field which instead can be {`admin`, `maintain`, `push`, `triage`, `pull`}. The `owner` field is also adjusted to be just a string instead of an object. The `permissions` field (object) is not included in this response.
+
+## Swagger Documentation
+
+For more detailed information about the API endpoints, please refer to the Swagger documentation available at `/swagger/index.html` endpoint of the service.
 
 ## Authentication
-Since it's a wrapper for GitHub API, it supports the same authentication methods provided by GitHub to interact with GitHub resources.
+
+The plugin will forward the `Authorization` header passed in the request to this plugin to the GitHub API.
