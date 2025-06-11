@@ -2,6 +2,7 @@
 
 This web service addresses some inconsistencies in the GitHub API's. 
 This web service is written for [`rest-dynamic-controller`](https://github.com/krateoplatformops/rest-dynamic-controller/), the dynamic controller instaciated by [`oasgen-provider`](https://github.com/krateoplatformops/oasgen-provider).
+In particular, this plugin is design to work alongside the [`github-provider-kog`](https://github.com/krateoplatformops/github-provider-kog-chart).
 
 ## Summary
 
