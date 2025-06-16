@@ -147,6 +147,9 @@ func getUserInvitationFromPage(inviteBody []byte, username string) (*GitHubInvit
 	return nil, false
 }
 
+// In the case of Invitations, we cannot leverage role_name field since it is not present in the response.
+// Instead, we create a permissions object based on the single permission string from the invitation
+// createPermissionsObject creates a permissions object based on the single permission string
 func createPermissionsObject(permission string) map[string]bool {
 	permissions := map[string]bool{
 		"admin":    false,
