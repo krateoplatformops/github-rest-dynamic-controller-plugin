@@ -57,7 +57,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. If user is a collaborator (StatusNoContent = 204), get the permission
+	// 2. If user is a collaborator of the repo (GitHub returns StatusNoContent (204))
+	// Then we can get the permission
 	if resp.StatusCode == http.StatusNoContent {
 		h.Log.Print("User is a collaborator")
 		req, err := http.NewRequest("GET", "https://api.github.com/repos/"+owner+"/"+repo+"/collaborators/"+username+"/permission", nil)
@@ -78,9 +79,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Return 200 OK with permission data
+		// Return 200 OK with permission data in the body
 
-		// Read response body
+		// Read response body from GitHub API
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			h.Log.Print(err)
@@ -118,10 +119,98 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Otherwise, if user is NOT a collaborator, return the error status from GitHub (401 Unauthorized)
-	// Also if user does not exist, GitHub returns 401 Unauthorized
-	h.Log.Println("User is not a collaborator", resp.StatusCode, req.URL)
+	// 3. If user is NOT a collaborator of the repo but an invitation to collaborate could exists
+	// Check repository invitations with pagination
+	invitation, found, err := h.findUserInvitation(owner, repo, username, auth_header)
+	h.Log.Printf("Checking invitations for user %s in repository %s/%s", username, owner, repo)
+	if err != nil {
+		h.Log.Print("Error checking invitations:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprint("Error: ", err)))
+		return
+	}
 
+	if found {
+		h.Log.Printf("User %s has pending invitation with %s permission", username, invitation.Permissions)
+
+		// Build response similar to collaborator case but with additional invitation details
+		invitationResponse, err := BuildInvitationResponse(invitation, username)
+		if err != nil {
+			h.Log.Print("Failed to build invitation response:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprint("Error: ", err)))
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(invitationResponse)
+		return
+	}
+
+	// Otherwise, if user is NOT a collaborator of the repo,
+	// or user does not have received invitation,
+	// or user does not exist
+	// return the error status from GitHub (404 Not Found)
+	h.Log.Println("User is not a collaborator of the repo OR does not have received invitation OR does not exist", resp.StatusCode, req.URL)
 	w.WriteHeader(resp.StatusCode)
 	w.Write([]byte(fmt.Sprint("Error: ", resp.Status)))
+}
+
+// findUserInvitation searches for a user invitation across all pages
+func (h *handler) findUserInvitation(owner, repo, username, authHeader string) (*GitHubInvitation, bool, error) {
+
+	h.Log.Printf("Checking invitations for user %s in repository %s/%s", username, owner, repo)
+
+	page := 1
+	perPage := 30
+
+	for {
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://api.github.com/repos/%s/%s/invitations?per_page=%d&page=%d", owner, repo, perPage, page), nil)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if len(authHeader) > 0 {
+			req.Header.Set("Authorization", authHeader)
+		}
+
+		inviteResp, err := h.Client.Do(req)
+		if err != nil {
+			return nil, false, err
+		}
+		defer inviteResp.Body.Close()
+
+		// If we can't get invitations (not 200 OK), return not found
+		if inviteResp.StatusCode != http.StatusOK {
+			h.Log.Printf("Failed to get invitations, status: %d", inviteResp.StatusCode)
+			return nil, false, nil
+		}
+
+		inviteBody, err := io.ReadAll(inviteResp.Body)
+		if err != nil {
+			return nil, false, err
+		}
+
+		// Check if username exists in current page of invitations
+		if invitation, found := getUserInvitationFromPage(inviteBody, username); found {
+			return invitation, true, nil
+		}
+
+		// Check if we have more pages
+		// If we got less than perPage results, we've reached the last page
+		invitations, err := parseInvitations(inviteBody)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if len(invitations) < perPage {
+			// Last page reached, user not found
+			break
+		}
+
+		page++
+	}
+
+	return nil, false, nil
 }
