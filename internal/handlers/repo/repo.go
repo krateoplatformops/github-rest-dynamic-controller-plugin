@@ -112,6 +112,15 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return // Early return
 		}
 
+		// add field `is_invitation_pending` to the response
+		correctedBody, err = AddFieldToResponse(correctedBody, "is_invitation_pending", false)
+		if err != nil {
+			h.Log.Print("Failed to add is_invitation_pending field:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprint("Error: ", err)))
+			return
+		}
+
 		// add field "message" to the response
 		finalBody, err := AddFieldToResponse(correctedBody, "message", "User is a collaborator of the repository")
 		if err != nil {
@@ -148,6 +157,15 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		responseBodyFromInvitation, err := BuildResponseFromInvitatation(invitation, username)
 		if err != nil {
 			h.Log.Print("Failed to build response from invitation:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprint("Error: ", err)))
+			return
+		}
+
+		// add field `is_invitation_pending` to the response
+		responseBodyFromInvitation, err = AddFieldToResponse(responseBodyFromInvitation, "is_invitation_pending", true)
+		if err != nil {
+			h.Log.Print("Failed to add is_invitation_pending field to invitation response:", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(fmt.Sprint("Error: ", err)))
 			return
