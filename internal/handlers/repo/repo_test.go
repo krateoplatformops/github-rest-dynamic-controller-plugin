@@ -117,6 +117,7 @@ const (
 var (
 	collaboratorExternalURL = fmt.Sprintf("https://api.github.com/repos/%s/%s/collaborators/%s", testOwner, testRepo, testUsername)
 	permissionExternalURL   = fmt.Sprintf("https://api.github.com/repos/%s/%s/collaborators/%s/permission", testOwner, testRepo, testUsername)
+	invitationsExternalURL  = fmt.Sprintf("https://api.github.com/repos/%s/%s/invitations?per_page=30&page=1", testOwner, testRepo)
 	validPermissionResp     = `{
 		"permission": "admin",
 		"user": {
@@ -133,6 +134,67 @@ var (
 		},
 		"role_name": "admin"
 	}`
+	validInvitationResp = `[{
+		"id": 1,
+		"node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
+		"repository": {
+			"id": 1296269,
+			"name": "Hello-World",
+			"full_name": "octocat/Hello-World"
+		},
+		"invitee": {
+			"login": "testuser",
+			"id": 12345,
+			"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+			"avatar_url": "https://github.com/images/error/testuser_happy.gif",
+			"html_url": "https://github.com/testuser",
+			"type": "User"
+		},
+		"inviter": {
+			"login": "testowner",
+			"id": 67890,
+			"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+			"avatar_url": "https://github.com/images/error/testowner_happy.gif",
+			"html_url": "https://github.com/testowner",
+			"type": "User"
+		},
+		"permissions": "read",
+		"created_at": "2016-06-13T14:52:50-05:00",
+		"url": "https://api.github.com/user/repository_invitations/1",
+		"html_url": "https://github.com/testowner/testrepo/invitations",
+		"expired": false
+	}]`
+	validInvitationWriteResp = `[{
+		"id": 2,
+		"node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
+		"repository": {
+			"id": 1296269,
+			"name": "Hello-World",
+			"full_name": "octocat/Hello-World"
+		},
+		"invitee": {
+			"login": "testuser",
+			"id": 12345,
+			"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+			"avatar_url": "https://github.com/images/error/testuser_happy.gif",
+			"html_url": "https://github.com/testuser",
+			"type": "User"
+		},
+		"inviter": {
+			"login": "testowner",
+			"id": 67890,
+			"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+			"avatar_url": "https://github.com/images/error/testowner_happy.gif",
+			"html_url": "https://github.com/testowner",
+			"type": "User"
+		},
+		"permissions": "write",
+		"created_at": "2016-06-13T14:52:50-05:00",
+		"url": "https://api.github.com/user/repository_invitations/2",
+		"html_url": "https://github.com/testowner/testrepo/invitations",
+		"expired": false
+	}]`
+	emptyInvitationResp = `[]`
 )
 
 // GetRepo returns a new handler for repository permissions
@@ -348,6 +410,316 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectedBodyContains: `"permission":"triage"`,
 			expectedRequestCount: 2,
 		},
+		{
+			name:       "user has pending invitation with read permission (corrected to pull)",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				// First call: check if user is collaborator (GitHub returns 404 - not a collaborator)
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNotFound, `{"message": "Not Found"}`)
+				// Second call: check invitations (returns invitation with read permission)
+				mockClient.setResponse(invitationsExternalURL, http.StatusOK, validInvitationResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"pull"`, // read permission should be corrected to pull
+			expectedRequestCount: 2,
+			verifyRequests: func(t *testing.T, mockClient *mockHTTPClient) {
+				if mockClient.getRequestCount() != 2 {
+					t.Errorf("Expected 2 requests, got %d", mockClient.getRequestCount())
+				}
+
+				// Verify first request (collaborator check)
+				req1 := mockClient.requests[0]
+				if req1.URL.String() != collaboratorExternalURL {
+					t.Errorf("First request URL = %s, want %s", req1.URL.String(), collaboratorExternalURL)
+				}
+
+				// Verify second request (invitation check)
+				req2 := mockClient.requests[1]
+				if req2.URL.String() != invitationsExternalURL {
+					t.Errorf("Second request URL = %s, want %s", req2.URL.String(), invitationsExternalURL)
+				}
+			},
+		},
+		{
+			name:       "user has pending invitation with write permission (corrected to push)",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				// First call: check if user is collaborator (GitHub returns 404 - not a collaborator)
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNotFound, `{"message": "Not Found"}`)
+				// Second call: check invitations (returns invitation with write permission)
+				mockClient.setResponse(invitationsExternalURL, http.StatusOK, validInvitationWriteResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"push"`, // write permission should be corrected to push
+			expectedRequestCount: 2,
+		},
+		{
+			name:       "user has pending invitation with admin permission",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				// First call: check if user is collaborator (GitHub returns 404 - not a collaborator)
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNotFound, `{"message": "Not Found"}`)
+				// Second call: check invitations (returns invitation with admin permission)
+				adminInvitationResp := `[{
+					"id": 3,
+					"node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
+					"repository": {
+						"id": 1296269,
+						"name": "Hello-World",
+						"full_name": "octocat/Hello-World"
+					},
+					"invitee": {
+						"login": "testuser",
+						"id": 12345,
+						"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+						"avatar_url": "https://github.com/images/error/testuser_happy.gif",
+						"html_url": "https://github.com/testuser",
+						"type": "User"
+					},
+					"inviter": {
+						"login": "testowner",
+						"id": 67890,
+						"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+						"avatar_url": "https://github.com/images/error/testowner_happy.gif",
+						"html_url": "https://github.com/testowner",
+						"type": "User"
+					},
+					"permissions": "admin",
+					"created_at": "2016-06-13T14:52:50-05:00",
+					"url": "https://api.github.com/user/repository_invitations/3",
+					"html_url": "https://github.com/testowner/testrepo/invitations",
+					"expired": false
+				}]`
+				mockClient.setResponse(invitationsExternalURL, http.StatusOK, adminInvitationResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"admin"`,
+			expectedRequestCount: 2,
+		},
+		{
+			name:       "user has pending invitation with maintain permission",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				// First call: check if user is collaborator (GitHub returns 404 - not a collaborator)
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNotFound, `{"message": "Not Found"}`)
+				// Second call: check invitations (returns invitation with maintain permission)
+				maintainInvitationResp := `[{
+					"id": 4,
+					"node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
+					"repository": {
+						"id": 1296269,
+						"name": "Hello-World",
+						"full_name": "octocat/Hello-World"
+					},
+					"invitee": {
+						"login": "testuser",
+						"id": 12345,
+						"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+						"avatar_url": "https://github.com/images/error/testuser_happy.gif",
+						"html_url": "https://github.com/testuser",
+						"type": "User"
+					},
+					"inviter": {
+						"login": "testowner",
+						"id": 67890,
+						"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+						"avatar_url": "https://github.com/images/error/testowner_happy.gif",
+						"html_url": "https://github.com/testowner",
+						"type": "User"
+					},
+					"permissions": "maintain",
+					"created_at": "2016-06-13T14:52:50-05:00",
+					"url": "https://api.github.com/user/repository_invitations/4",
+					"html_url": "https://github.com/testowner/testrepo/invitations",
+					"expired": false
+				}]`
+				mockClient.setResponse(invitationsExternalURL, http.StatusOK, maintainInvitationResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"maintain"`,
+			expectedRequestCount: 2,
+		},
+		{
+			name:       "user has pending invitation with triage permission",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				// First call: check if user is collaborator (GitHub returns 404 - not a collaborator)
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNotFound, `{"message": "Not Found"}`)
+				// Second call: check invitations (returns invitation with triage permission)
+				triageInvitationResp := `[{
+					"id": 5,
+					"node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
+					"repository": {
+						"id": 1296269,
+						"name": "Hello-World",
+						"full_name": "octocat/Hello-World"
+					},
+					"invitee": {
+						"login": "testuser",
+						"id": 12345,
+						"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+						"avatar_url": "https://github.com/images/error/testuser_happy.gif",
+						"html_url": "https://github.com/testuser",
+						"type": "User"
+					},
+					"inviter": {
+						"login": "testowner",
+						"id": 67890,
+						"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+						"avatar_url": "https://github.com/images/error/testowner_happy.gif",
+						"html_url": "https://github.com/testowner",
+						"type": "User"
+					},
+					"permissions": "triage",
+					"created_at": "2016-06-13T14:52:50-05:00",
+					"url": "https://api.github.com/user/repository_invitations/5",
+					"html_url": "https://github.com/testowner/testrepo/invitations",
+					"expired": false
+				}]`
+				mockClient.setResponse(invitationsExternalURL, http.StatusOK, triageInvitationResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"permission":"triage"`,
+			expectedRequestCount: 2,
+		},
+		{
+			name:       "user has pending invitation - response contains invitation metadata",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				// First call: check if user is collaborator (GitHub returns 404 - not a collaborator)
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNotFound, `{"message": "Not Found"}`)
+				// Second call: check invitations (returns invitation data)
+				mockClient.setResponse(invitationsExternalURL, http.StatusOK, validInvitationResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"invitation_status":"pending"`,
+			expectedRequestCount: 2,
+		},
+		{
+			name:       "user has pending invitation - response contains invitee_info",
+			owner:      testOwner,
+			repo:       testRepo,
+			username:   testUsername,
+			authHeader: testToken,
+			setupMock: func(mockClient *mockHTTPClient) {
+				// First call: check if user is collaborator (GitHub returns 404 - not a collaborator)
+				mockClient.setResponse(collaboratorExternalURL, http.StatusNotFound, `{"message": "Not Found"}`)
+				// Second call: check invitations (returns invitation data)
+				mockClient.setResponse(invitationsExternalURL, http.StatusOK, validInvitationResp)
+			},
+			expectedStatus:       http.StatusOK,
+			expectedContentType:  "application/json",
+			expectedBodyContains: `"invitee_info"`,
+			expectedRequestCount: 2,
+		},
+		//{
+		//	name:       "user not found in invitations - empty invitation list",
+		//	owner:      testOwner,
+		//	repo:       testRepo,
+		//	username:   testUsername,
+		//	authHeader: testToken,
+		//	setupMock: func(mockClient *mockHTTPClient) {
+		//		// First call: check if user is collaborator (GitHub returns 404 - not a collaborator)
+		//		mockClient.setResponse(collaboratorExternalURL, http.StatusNotFound, `{"message": "Not Found"}`)
+		//		// Second call: check invitations (returns empty list)
+		//		mockClient.setResponse(invitationsExternalURL, http.StatusOK, emptyInvitationResp)
+		//	},
+		//	expectedStatus:       http.StatusNotFound,
+		//	expectedContentType:  "",
+		//	expectedBodyContains: "Error: 404 Not Found",
+		//	expectedRequestCount: 2,
+		//},
+		//{
+		//	name:       "user not found in invitations - different user in list",
+		//	owner:      testOwner,
+		//	repo:       testRepo,
+		//	username:   testUsername,
+		//	authHeader: testToken,
+		//	setupMock: func(mockClient *mockHTTPClient) {
+		//		// First call: check if user is collaborator (GitHub returns 404 - not a collaborator)
+		//		mockClient.setResponse(collaboratorExternalURL, http.StatusNotFound, `{"message": "Not Found"}`)
+		//		// Second call: check invitations (returns invitation for different user)
+		//		differentUserInvitationResp := `[{
+		//			"id": 6,
+		//			"node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
+		//			"repository": {
+		//				"id": 1296269,
+		//				"name": "Hello-World",
+		//				"full_name": "octocat/Hello-World"
+		//			},
+		//			"invitee": {
+		//				"login": "differentuser",
+		//				"id": 54321,
+		//				"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+		//				"avatar_url": "https://github.com/images/error/differentuser_happy.gif",
+		//				"html_url": "https://github.com/differentuser",
+		//				"type": "User"
+		//			},
+		//			"inviter": {
+		//				"login": "testowner",
+		//				"id": 67890,
+		//				"node_id": "MDQ6VXNlcjU4MzIzMQ==",
+		//				"avatar_url": "https://github.com/images/error/testowner_happy.gif",
+		//				"html_url": "https://github.com/testowner",
+		//				"type": "User"
+		//			},
+		//			"permissions": "read",
+		//			"created_at": "2016-06-13T14:52:50-05:00",
+		//			"url": "https://api.github.com/user/repository_invitations/6",
+		//			"html_url": "https://github.com/testowner/testrepo/invitations",
+		//			"expired": false
+		//		}]`
+		//		mockClient.setResponse(invitationsExternalURL, http.StatusOK, differentUserInvitationResp)
+		//	},
+		//	expectedStatus:       http.StatusNotFound,
+		//	expectedContentType:  "",
+		//	expectedBodyContains: "Error: 404 Not Found",
+		//	expectedRequestCount: 2,
+		//	verifyRequests: func(t *testing.T, mockClient *mockHTTPClient) {
+		//		if mockClient.getRequestCount() != 2 {
+		//			t.Errorf("Expected 2 requests, got %d", mockClient.getRequestCount())
+		//		}
+		//
+		//		// Verify first request (collaborator check)
+		//		req1 := mockClient.requests[0]
+		//		if req1.URL.String() != collaboratorExternalURL {
+		//			t.Errorf("First request URL = %s, want %s", req1.URL.String(), collaboratorExternalURL)
+		//		}
+		//
+		//		// Verify second request (invitation check)
+		//		req2 := mockClient.requests[1]
+		//		if req2.URL.String() != invitationsExternalURL {
+		//			t.Errorf("Second request URL = %s, want %s", req2.URL.String(), invitationsExternalURL)
+		//		}
+		//		if req2.Header.Get("Authorization") != testToken {
+		//			t.Errorf("Second request Authorization header = %s, want %s", req2.Header.Get("Authorization"), testToken)
+		//		}
+		//	},
+		//},
 	}
 
 	for _, tt := range tests {

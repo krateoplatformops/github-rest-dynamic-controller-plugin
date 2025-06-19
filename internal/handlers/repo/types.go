@@ -7,6 +7,7 @@ type RepoPermissions struct {
 	Permissions Permissions `json:"permissions"`
 	RoleName    string      `json:"role_name"`
 	User        User        `json:"user"`
+	Message     string      `json:"message"`
 }
 
 type User struct {
