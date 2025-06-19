@@ -28,6 +28,7 @@ type handler struct {
 // @Param username path string true "Username of the collaborator"
 // @Produce json
 // @Success 200 {object} repo.RepoPermissions
+// @Success 202 {object} repo.RepoPermissions "Pending invitation"
 // @Router /repository/{owner}/{repo}/collaborators/{username}/permission [get]
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	owner := r.PathValue("owner")
@@ -163,10 +164,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 
-		// 404 Not Found to indicate pending invitation, so that Collaborator CR is Ready=False
-		// We found an invitation but the user is not a collaborator yet
-		h.Log.Println("User has a pending invitation (not yet a collaborator), returning 404 Not Found")
-		w.WriteHeader(http.StatusNotFound)
+		// HTTP status code 202 Accepted.
+		// It indicates that the server has received the request and is processing it,
+		// but the processing has not been completed yet
+		h.Log.Println("User has a pending invitation (not yet a collaborator), returning 202 Accepted")
+		w.WriteHeader(http.StatusAccepted) // 202 Accepted to indicate pending invitation
 		w.Write(finalBody)
 		return
 	}
