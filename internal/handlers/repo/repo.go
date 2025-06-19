@@ -111,10 +111,19 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return // Early return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(correctedBody)
+		// add field "message" to the response
+		finalBody, err := AddFieldToResponse(correctedBody, "message", "User is a collaborator of the repository")
+		if err != nil {
+			h.Log.Print("Failed to add message field:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprint("Error: ", err)))
+			return
+		}
 
-		h.Log.Printf("Corrected body: %s", string(correctedBody))
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(finalBody)
+
+		h.Log.Printf("Corrected body: %s", string(finalBody))
 		h.Log.Print("Successfully called", req.URL)
 		return
 	}
@@ -133,18 +142,32 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if found {
 		h.Log.Printf("User %s has pending invitation with %s permission", username, invitation.Permissions)
 
-		// Build response similar to collaborator case but with additional invitation details
-		invitationResponse, err := BuildInvitationResponse(invitation, username)
+		// Build response similar to collaborator case but starting from invitation
+		// and adding a message indicating that the user has a pending invitation
+		responseBodyFromInvitation, err := BuildResponseFromInvitatation(invitation, username)
 		if err != nil {
-			h.Log.Print("Failed to build invitation response:", err)
+			h.Log.Print("Failed to build response from invitation:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprint("Error: ", err)))
+			return
+		}
+
+		// add field "message" to the response
+		finalBody, err := AddFieldToResponse(responseBodyFromInvitation, "message", "User has a pending invitation, not yet a collaborator")
+		if err != nil {
+			h.Log.Print("Failed to add message field to invitation response:", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(fmt.Sprint("Error: ", err)))
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write(invitationResponse)
+
+		// 404 Not Found to indicate pending invitation, so that Collaborator CR is Ready=False
+		// We found an invitation but the user is not a collaborator yet
+		h.Log.Println("User has a pending invitation (not yet a collaborator), returning 404 Not Found")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write(finalBody)
 		return
 	}
 
@@ -153,8 +176,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// or user does not exist
 	// return the error status from GitHub (404 Not Found)
 	h.Log.Println("User is not a collaborator of the repo OR does not have received invitation OR does not exist", resp.StatusCode, req.URL)
+
 	w.WriteHeader(resp.StatusCode)
 	w.Write([]byte(fmt.Sprint("Error: ", resp.Status)))
+
 }
 
 // findUserInvitation searches for a user invitation across all pages

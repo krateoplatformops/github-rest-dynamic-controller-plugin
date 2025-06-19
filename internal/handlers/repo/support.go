@@ -89,6 +89,18 @@ func CorrectGitHubUserPermissionField(body []byte) ([]byte, error) {
 	return json.Marshal(data)
 }
 
+// function to add a field to the response body
+func AddFieldToResponse(body []byte, fieldName string, fieldValue interface{}) ([]byte, error) {
+	var data map[string]interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	data[fieldName] = fieldValue
+
+	return json.Marshal(data)
+}
+
 // Invitations handling
 // This section deals with GitHub repository invitations, allowing us to check if a user has been invited to collaborate on a repository.
 // It includes parsing the invitation response, checking if a user exists in the invitations, and building a response similar to the collaborator permission response.
@@ -186,7 +198,7 @@ func createPermissionsObject(permission string) map[string]bool {
 
 // BuildInvitationResponse builds a response similar to the collaborator permission response
 // but with additional invitation status information
-func BuildInvitationResponse(invitation *GitHubInvitation, username string) ([]byte, error) {
+func BuildResponseFromInvitatation(invitation *GitHubInvitation, username string) ([]byte, error) {
 	// Map GitHub API permission to our expected format (same as CorrectGitHubUserPermissionField)
 	// Note that in the case of invitations the `invitation.Permissions` field is the same as `role_name``: a single string with `read` and `write` permissions to be corrected to `pull` and `push` respectively, while `admin`, `maintain`, and `triage` remain unchanged.
 
