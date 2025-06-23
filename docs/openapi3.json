@@ -64,7 +64,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/repo.Permission"
+                "$ref": "#/components/schemas/collaborator.Permission"
               }
             }
           },
@@ -76,7 +76,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/repo.Message"
+                  "$ref": "#/components/schemas/collaborator.Message"
                 }
               }
             }
@@ -87,6 +87,72 @@
           }
         },
         "x-codegen-request-body-name": "permission"
+      },
+      "delete": {
+        "summary": "Delete repository collaborator or cancel invitation",
+        "description": "Remove a collaborator from repository or cancel a pending invitation",
+        "operationId": "delete-repo-collaborator",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "description": "Owner of the repository",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "description": "Name of the repository",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "username",
+            "in": "path",
+            "description": "Username of the collaborator to remove",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collaborator removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/collaborator.Message"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Invitation cancelled successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/collaborator.Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found as collaborator or invitee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/collaborator.Message"
+                }
+              }
+            }
+          }
+        }
       },
       "patch": {
         "summary": "Update repository collaborator permission or invitation",
@@ -126,7 +192,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/repo.Permission"
+                "$ref": "#/components/schemas/collaborator.Permission"
               }
             }
           },
@@ -138,7 +204,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/repo.Message"
+                  "$ref": "#/components/schemas/collaborator.Message"
                 }
               }
             }
@@ -148,7 +214,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/repo.Message"
+                  "$ref": "#/components/schemas/collaborator.Message"
                 }
               }
             }
@@ -197,7 +263,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/repo.RepoPermissions"
+                  "$ref": "#/components/schemas/collaborator.RepoPermissions"
                 }
               }
             }
@@ -265,7 +331,7 @@
   },
   "components": {
     "schemas": {
-      "repo.Message": {
+      "collaborator.Message": {
         "type": "object",
         "properties": {
           "message": {
@@ -273,7 +339,7 @@
           }
         }
       },
-      "repo.Permission": {
+      "collaborator.Permission": {
         "type": "object",
         "properties": {
           "permission": {
@@ -281,7 +347,7 @@
           }
         }
       },
-      "repo.Permissions": {
+      "collaborator.Permissions": {
         "type": "object",
         "properties": {
           "admin": {
@@ -301,7 +367,7 @@
           }
         }
       },
-      "repo.RepoPermissions": {
+      "collaborator.RepoPermissions": {
         "type": "object",
         "properties": {
           "html_url": {
@@ -317,17 +383,17 @@
             "type": "string"
           },
           "permissions": {
-            "$ref": "#/components/schemas/repo.Permissions"
+            "$ref": "#/components/schemas/collaborator.Permissions"
           },
           "role_name": {
             "type": "string"
           },
           "user": {
-            "$ref": "#/components/schemas/repo.User"
+            "$ref": "#/components/schemas/collaborator.User"
           }
         }
       },
-      "repo.User": {
+      "collaborator.User": {
         "type": "object",
         "properties": {
           "avatar_url": {
@@ -364,7 +430,7 @@
             "type": "string"
           },
           "permissions": {
-            "$ref": "#/components/schemas/repo.Permissions"
+            "$ref": "#/components/schemas/collaborator.Permissions"
           },
           "received_events_url": {
             "type": "string"

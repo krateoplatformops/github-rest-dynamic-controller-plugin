@@ -1,4 +1,4 @@
-package repo
+package collaborator
 
 import (
 	"encoding/json"
@@ -33,9 +33,9 @@ func FlattenGitHubUserPermissionBytes(body []byte) ([]byte, error) {
 	return GitHubUserPermissionFlattener.FlattenBytes(body)
 }
 
-// The following is a utility function to deal with GitHub permissions discrepancies in the API responses
-
 /*
+The following is a utility function to deal with GitHub permissions discrepancies in the API responses
+
 Discrepancies for a Collaborator:
 
 'permission' in CR		'permission' in GitHub RESPONSE		'role_name' in GitHub RESPONSE
@@ -170,7 +170,9 @@ func CorrectGitHubUserPermissionsFieldReqBody(body []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to unmarshal request body: %w", err)
 	}
 
-	// Check if the permission field exists, save content, add a new `permissions` field with the mapping and remove the old `permission` field
+	// Check if the permission field exists,
+	// save content, add a new `permissions` field with the mapping
+	// and remove the old `permission` field
 	permission, exists := data["permission"].(string)
 	if !exists {
 		return body, nil // No permission field to correct
@@ -222,121 +224,3 @@ func ReadFieldFromBody(body []byte, fieldName string) (interface{}, error) {
 
 	return value, nil
 }
-
-// Note: The following commented-out function is not used in the current implementation
-// In the case of Invitations, we cannot leverage role_name field since it is not present in the response.
-// Instead, we create a permissions object based on the single permission string from the invitation
-// createPermissionsObject creates a permissions object based on the single permission string
-/*
-func createPermissionsObject(permission string) map[string]bool {
-	permissions := map[string]bool{
-		"admin":    false,
-		"maintain": false,
-		"push":     false,
-		"triage":   false,
-		"pull":     false,
-	}
-
-	switch permission {
-	case "pull":
-		permissions["pull"] = true
-	case "push":
-		permissions["pull"] = true
-		permissions["push"] = true
-	case "triage":
-		permissions["pull"] = true
-		permissions["triage"] = true
-	case "maintain":
-		permissions["pull"] = true
-		permissions["push"] = true
-		permissions["triage"] = true
-		permissions["maintain"] = true
-	case "admin":
-		permissions["pull"] = true
-		permissions["push"] = true
-		permissions["triage"] = true
-		permissions["maintain"] = true
-		permissions["admin"] = true
-	}
-
-	return permissions
-}
-*/
-
-// BuildInvitationResponse builds a response similar to the collaborator permission response
-// but with additional invitation status information
-/*
-func BuildResponseFromInvitatation(invitation *GitHubInvitation, username string) ([]byte, error) {
-	// Map GitHub API permission to our expected format (same as CorrectGitHubUserPermissionField)
-	// Note that in the case of invitations the `invitation.Permissions` field is the same as `role_name``: a single string with `read` and `write` permissions to be corrected to `pull` and `push` respectively, while `admin`, `maintain`, and `triage` remain unchanged.
-
-	var correctedPermission string
-	switch invitation.Permissions {
-	case "read":
-		correctedPermission = "pull"
-	case "write":
-		correctedPermission = "push"
-	case "admin":
-		correctedPermission = "admin"
-	case "maintain":
-		correctedPermission = "maintain"
-	case "triage":
-		correctedPermission = "triage"
-	default:
-		correctedPermission = invitation.Permissions
-	}
-
-	// Create permissions object
-	permissionsObj := createPermissionsObject(correctedPermission)
-
-	// Build user object similar to the collaborator response
-	userObj := map[string]interface{}{
-		"avatar_url":          invitation.Invitee.AvatarURL,
-		"events_url":          fmt.Sprintf("https://api.github.com/users/%s/events{/privacy}", invitation.Invitee.Login),
-		"followers_url":       fmt.Sprintf("https://api.github.com/users/%s/followers", invitation.Invitee.Login),
-		"following_url":       fmt.Sprintf("https://api.github.com/users/%s/following{/other_user}", invitation.Invitee.Login),
-		"gists_url":           fmt.Sprintf("https://api.github.com/users/%s/gists{/gist_id}", invitation.Invitee.Login),
-		"gravatar_id":         "",
-		"html_url":            invitation.Invitee.HTMLURL,
-		"id":                  invitation.Invitee.ID,
-		"login":               invitation.Invitee.Login,
-		"node_id":             invitation.Invitee.NodeID,
-		"organizations_url":   fmt.Sprintf("https://api.github.com/users/%s/orgs", invitation.Invitee.Login),
-		"permissions":         permissionsObj,
-		"received_events_url": fmt.Sprintf("https://api.github.com/users/%s/received_events", invitation.Invitee.Login),
-		"repos_url":           fmt.Sprintf("https://api.github.com/users/%s/repos", invitation.Invitee.Login),
-		"role_name":           invitation.Permissions, // Original permission from GitHub
-		"site_admin":          false,
-		"starred_url":         fmt.Sprintf("https://api.github.com/users/%s/starred{/owner}{/repo}", invitation.Invitee.Login),
-		"subscriptions_url":   fmt.Sprintf("https://api.github.com/users/%s/subscriptions", invitation.Invitee.Login),
-		"type":                invitation.Invitee.Type,
-		"url":                 fmt.Sprintf("https://api.github.com/users/%s", invitation.Invitee.Login),
-		"user_view_type":      "public",
-	}
-
-	// InviteeInfo object is an additional object in the response with partial information about the invitee
-	inviteeInfoObj := map[string]interface{}{
-		// Additional invitation-specific fields, useful for debug when checking collaborator-controller logs
-		"invitation_status":   "pending",
-		"invitation_id":       invitation.ID,
-		"invitation_url":      invitation.URL,
-		"invitation_html_url": invitation.HTMLURL,
-		"invited_at":          invitation.CreatedAt,
-		"invited_by":          invitation.Inviter.Login,
-		"invitation_expired":  invitation.Expired,
-	}
-
-	// Build response structure similar to collaborator permission response
-	response := map[string]interface{}{
-		"html_url":     invitation.Invitee.HTMLURL,
-		"id":           invitation.Invitee.ID,
-		"permission":   correctedPermission,
-		"permissions":  permissionsObj,
-		"role_name":    invitation.Permissions, // Original permission from GitHub (single string)
-		"user":         userObj,
-		"invitee_info": inviteeInfoObj,
-	}
-
-	return json.Marshal(response)
-}
-*/

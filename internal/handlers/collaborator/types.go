@@ -1,4 +1,4 @@
-package repo
+package collaborator
 
 type RepoPermissions struct {
 	HTMLURL     string      `json:"html_url"`

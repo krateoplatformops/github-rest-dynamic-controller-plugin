@@ -14,8 +14,8 @@ import (
 	_ "github.com/krateoplatformops/github-rest-dynamic-controller-plugin/docs"
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/env"
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers"
+	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/collaborator"
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/health"
-	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/repo"
 	teamrepo "github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/teamRepo"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -81,9 +81,10 @@ func main() {
 	// Business logic routes to handle some GitHub API's endpoints
 
 	// Collaborator
-	mux.Handle("GET /repository/{owner}/{repo}/collaborators/{username}/permission", repo.GetRepo(opts))
-	mux.Handle("POST /repository/{owner}/{repo}/collaborators/{username}", repo.PostRepo(opts))
-	mux.Handle("PATCH /repository/{owner}/{repo}/collaborators/{username}", repo.PatchRepo(opts))
+	mux.Handle("GET /repository/{owner}/{repo}/collaborators/{username}/permission", collaborator.GetCollaborator(opts))
+	mux.Handle("POST /repository/{owner}/{repo}/collaborators/{username}", collaborator.PostCollaborator(opts))
+	mux.Handle("PATCH /repository/{owner}/{repo}/collaborators/{username}", collaborator.PatchCollaborator(opts))
+	mux.Handle("DELETE /repository/{owner}/{repo}/collaborators/{username}", collaborator.DeleteCollaborator(opts))
 
 	// TeamRepo
 	mux.Handle("GET /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}", teamrepo.GetTeamRepo(opts))
