@@ -28,7 +28,6 @@ type handler struct {
 // @Param username path string true "Username of the collaborator"
 // @Produce json
 // @Success 200 {object} repo.RepoPermissions
-// @Success 202 {object} repo.RepoPermissions "Pending invitation"
 // @Router /repository/{owner}/{repo}/collaborators/{username}/permission [get]
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	owner := r.PathValue("owner")
@@ -112,15 +111,6 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return // Early return
 		}
 
-		// add field `is_invitation_pending` to the response
-		correctedBody, err = AddFieldToResponse(correctedBody, "is_invitation_pending", false)
-		if err != nil {
-			h.Log.Print("Failed to add is_invitation_pending field:", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(fmt.Sprint("Error: ", err)))
-			return
-		}
-
 		// add field "message" to the response
 		finalBody, err := AddFieldToResponse(correctedBody, "message", "User is a collaborator of the repository")
 		if err != nil {
@@ -138,124 +128,12 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. If user is NOT a collaborator of the repo but an invitation to collaborate could exists
-	// Check repository invitations with pagination
-	invitation, found, err := h.findUserInvitation(owner, repo, username, auth_header)
-	h.Log.Printf("Checking invitations for user %s in repository %s/%s", username, owner, repo)
-	if err != nil {
-		h.Log.Print("Error checking invitations:", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprint("Error: ", err)))
-		return
-	}
-
-	if found {
-		h.Log.Printf("User %s has pending invitation with %s permission", username, invitation.Permissions)
-
-		// Build response similar to collaborator case but starting from invitation
-		// and adding a message indicating that the user has a pending invitation
-		responseBodyFromInvitation, err := BuildResponseFromInvitatation(invitation, username)
-		if err != nil {
-			h.Log.Print("Failed to build response from invitation:", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(fmt.Sprint("Error: ", err)))
-			return
-		}
-
-		// add field `is_invitation_pending` to the response
-		responseBodyFromInvitation, err = AddFieldToResponse(responseBodyFromInvitation, "is_invitation_pending", true)
-		if err != nil {
-			h.Log.Print("Failed to add is_invitation_pending field to invitation response:", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(fmt.Sprint("Error: ", err)))
-			return
-		}
-
-		// add field "message" to the response
-		finalBody, err := AddFieldToResponse(responseBodyFromInvitation, "message", "User has a pending invitation, not yet a collaborator")
-		if err != nil {
-			h.Log.Print("Failed to add message field to invitation response:", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(fmt.Sprint("Error: ", err)))
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		// HTTP status code 202 Accepted.
-		// It indicates that the server has received the request and is processing it,
-		// but the processing has not been completed yet
-		h.Log.Println("User has a pending invitation (not yet a collaborator), returning 202 Accepted")
-		w.WriteHeader(http.StatusAccepted) // 202 Accepted to indicate pending invitation
-		w.Write(finalBody)
-		return
-	}
-
 	// Otherwise, if user is NOT a collaborator of the repo,
-	// or user does not have received invitation,
 	// or user does not exist
 	// return the error status from GitHub (404 Not Found)
-	h.Log.Println("User is not a collaborator of the repo OR does not have received invitation OR does not exist", resp.StatusCode, req.URL)
+	h.Log.Println("User is not a collaborator of the repo OR does not exist", resp.StatusCode, req.URL)
 
 	w.WriteHeader(resp.StatusCode)
 	w.Write([]byte(fmt.Sprint("Error: ", resp.Status)))
 
-}
-
-// findUserInvitation searches for a user invitation across all pages
-func (h *handler) findUserInvitation(owner, repo, username, authHeader string) (*GitHubInvitation, bool, error) {
-
-	h.Log.Printf("Checking invitations for user %s in repository %s/%s", username, owner, repo)
-
-	page := 1
-	perPage := 30
-
-	for {
-		req, err := http.NewRequest("GET", fmt.Sprintf("https://api.github.com/repos/%s/%s/invitations?per_page=%d&page=%d", owner, repo, perPage, page), nil)
-		if err != nil {
-			return nil, false, err
-		}
-
-		if len(authHeader) > 0 {
-			req.Header.Set("Authorization", authHeader)
-		}
-
-		inviteResp, err := h.Client.Do(req)
-		if err != nil {
-			return nil, false, err
-		}
-		defer inviteResp.Body.Close()
-
-		// If we can't get invitations (not 200 OK), return not found
-		if inviteResp.StatusCode != http.StatusOK {
-			h.Log.Printf("Failed to get invitations, status: %d", inviteResp.StatusCode)
-			return nil, false, nil
-		}
-
-		inviteBody, err := io.ReadAll(inviteResp.Body)
-		if err != nil {
-			return nil, false, err
-		}
-
-		// Check if username exists in current page of invitations
-		if invitation, found := getUserInvitationFromPage(inviteBody, username); found {
-			return invitation, true, nil
-		}
-
-		// Check if we have more pages
-		// If we got less than perPage results, we've reached the last page
-		invitations, err := parseInvitations(inviteBody)
-		if err != nil {
-			return nil, false, err
-		}
-
-		if len(invitations) < perPage {
-			// Last page reached, user not found
-			break
-		}
-
-		page++
-	}
-
-	return nil, false, nil
 }
