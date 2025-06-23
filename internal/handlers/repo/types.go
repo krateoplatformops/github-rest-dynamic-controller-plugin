@@ -41,3 +41,11 @@ type Permissions struct {
 	Triage   bool `json:"triage"`
 	Pull     bool `json:"pull"`
 }
+
+type Message struct {
+	Message string `json:"message"`
+}
+
+type Permission struct {
+	Permission string `json:"permission"`
+}

@@ -80,6 +80,7 @@ func main() {
 
 	// Business logic routes
 	mux.Handle("GET /repository/{owner}/{repo}/collaborators/{username}/permission", repo.GetRepo(opts))
+	mux.Handle("POST /repository/{owner}/{repo}/collaborators/{username}", repo.PostRepo(opts))
 	mux.Handle("GET /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}", teamrepo.GetTeamRepo(opts))
 	mux.Handle("/swagger/", httpSwagger.WrapHandler)
 

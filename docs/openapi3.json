@@ -25,6 +25,70 @@
     }
   ],
   "paths": {
+    "/repository/{owner}/{repo}/collaborators/{username}": {
+      "post": {
+        "summary": "Add a repository collaborator",
+        "description": "Add a repository collaborator or invite a user to collaborate on a repository",
+        "operationId": "post-repo-collaborator",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "description": "Owner of the repository",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "description": "Name of the repository",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "username",
+            "in": "path",
+            "description": "Username of the collaborator to add",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Permission to grant to the collaborator",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/repo.Permission"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Invitation sent to user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/repo.Message"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "User already collaborator",
+            "content": {}
+          }
+        },
+        "x-codegen-request-body-name": "permission"
+      }
+    },
     "/repository/{owner}/{repo}/collaborators/{username}/permission": {
       "get": {
         "summary": "Get the permission of a user in a repository",
@@ -133,6 +197,22 @@
   },
   "components": {
     "schemas": {
+      "repo.Message": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "repo.Permission": {
+        "type": "object",
+        "properties": {
+          "permission": {
+            "type": "string"
+          }
+        }
+      },
       "repo.Permissions": {
         "type": "object",
         "properties": {
@@ -161,6 +241,9 @@
           },
           "id": {
             "type": "integer"
+          },
+          "message": {
+            "type": "string"
           },
           "permission": {
             "type": "string"

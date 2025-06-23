@@ -1,5 +1,15 @@
 basePath: /
 definitions:
+  repo.Message:
+    properties:
+      message:
+        type: string
+    type: object
+  repo.Permission:
+    properties:
+      permission:
+        type: string
+    type: object
   repo.Permissions:
     properties:
       admin:
@@ -19,6 +29,8 @@ definitions:
         type: string
       id:
         type: integer
+      message:
+        type: string
       permission:
         type: string
       permissions:
@@ -266,6 +278,45 @@ info:
   title: GitHub Plugin API for Krateo Operator Generator (KOG)
   version: "1.0"
 paths:
+  /repository/{owner}/{repo}/collaborators/{username}:
+    post:
+      consumes:
+      - application/json
+      description: Add a repository collaborator or invite a user to collaborate on
+        a repository
+      operationId: post-repo-collaborator
+      parameters:
+      - description: Owner of the repository
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Name of the repository
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: Username of the collaborator to add
+        in: path
+        name: username
+        required: true
+        type: string
+      - description: Permission to grant to the collaborator
+        in: body
+        name: permission
+        required: true
+        schema:
+          $ref: '#/definitions/repo.Permission'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Invitation sent to user
+          schema:
+            $ref: '#/definitions/repo.Message'
+        "204":
+          description: User already collaborator
+      summary: Add a repository collaborator
   /repository/{owner}/{repo}/collaborators/{username}/permission:
     get:
       description: Get the permission of a user in a repository

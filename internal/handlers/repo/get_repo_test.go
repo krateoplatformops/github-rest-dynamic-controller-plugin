@@ -90,9 +90,9 @@ func (m *mockHTTPClient) reset() {
 }
 
 // createTestHandler creates a handler instance for testing with a mock client
-func createTestHandler(mockClient *mockHTTPClient) *handler {
+func createTestHandler(mockClient *mockHTTPClient) *getHandler {
 	logger := zerolog.New(io.Discard).With().Timestamp().Logger()
-	h := &handler{
+	h := &getHandler{
 		HandlerOptions: handlers.HandlerOptions{
 			Client: mockClient, // Use the mock client directly
 			Log:    &logger,
@@ -102,7 +102,7 @@ func createTestHandler(mockClient *mockHTTPClient) *handler {
 }
 
 // createTestHandlerWithSilentLog creates a handler with discarded logs
-func createTestHandlerWithSilentLog(mockClient *mockHTTPClient) *handler {
+func createTestHandlerWithSilentLog(mockClient *mockHTTPClient) *getHandler {
 	return createTestHandler(mockClient)
 }
 
@@ -216,7 +216,7 @@ func TestGetRepo(t *testing.T) {
 		var _ handlers.Handler = handlerInterface
 
 		// Verify the handler has the correct type and options
-		h, ok := handlerInterface.(*handler)
+		h, ok := handlerInterface.(*getHandler)
 		if !ok {
 			t.Fatal("GetRepo should return a *handler")
 		}

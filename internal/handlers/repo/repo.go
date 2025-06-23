@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,14 +10,25 @@ import (
 )
 
 func GetRepo(opts handlers.HandlerOptions) handlers.Handler {
-	return &handler{
+	return &getHandler{
 		HandlerOptions: opts,
 	}
 }
 
-var _ handlers.Handler = &handler{}
+func PostRepo(opts handlers.HandlerOptions) handlers.Handler {
+	return &postHandler{
+		HandlerOptions: opts,
+	}
+}
 
-type handler struct {
+var _ handlers.Handler = &getHandler{}
+var _ handlers.Handler = &postHandler{}
+
+type getHandler struct {
+	handlers.HandlerOptions
+}
+
+type postHandler struct {
 	handlers.HandlerOptions
 }
 
@@ -29,7 +41,7 @@ type handler struct {
 // @Produce json
 // @Success 200 {object} repo.RepoPermissions
 // @Router /repository/{owner}/{repo}/collaborators/{username}/permission [get]
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	owner := r.PathValue("owner")
 	repo := r.PathValue("repo")
 	username := r.PathValue("username")
@@ -135,5 +147,116 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(resp.StatusCode)
 	w.Write([]byte(fmt.Sprint("Error: ", resp.Status)))
+}
 
+// @Summary Add a repository collaborator
+// @Description Add a repository collaborator or invite a user to collaborate on a repository
+// @ID post-repo-collaborator
+// @Param owner path string true "Owner of the repository"
+// @Param repo path string true "Name of the repository"
+// @Param username path string true "Username of the collaborator to add"
+// @Param permission body repo.Permission true "Permission to grant to the collaborator"
+// @Accept json
+// @Produce json
+// @Success 202  {object} repo.Message "Invitation sent to user"
+// @Success 204 "User already collaborator"
+// @Router /repository/{owner}/{repo}/collaborators/{username} [post]
+func (h *postHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	owner := r.PathValue("owner")
+	repo := r.PathValue("repo")
+	username := r.PathValue("username")
+
+	h.Log.Printf("Adding collaborator %s to repository %s/%s", username, owner, repo)
+
+	authHeader := r.Header.Get("Authorization")
+
+	// Read the request body (permission data)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.Log.Printf("Failed to read request body: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(fmt.Sprintf("Error reading request body: %v", err)))
+		return
+	}
+	defer r.Body.Close()
+
+	// Create request to GitHub API
+	req, err := http.NewRequest("PUT", "https://api.github.com/repos/"+owner+"/"+repo+"/collaborators/"+username, nil)
+	if err != nil {
+		h.Log.Printf("Failed to create request: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("Error creating request: %v", err)))
+		return
+	}
+
+	// Set authorization header if present
+	if len(authHeader) > 0 {
+		req.Header.Set("Authorization", authHeader)
+	}
+
+	// Set content type and body if there's data to send
+	if len(body) > 0 {
+		req.Header.Set("Content-Type", "application/json")
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.ContentLength = int64(len(body))
+	}
+
+	// Make the request to GitHub API
+	resp, err := h.Client.Do(req)
+	if err != nil {
+		h.Log.Printf("Failed to call GitHub API: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("Error calling GitHub API: %v", err)))
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read GitHub API response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		h.Log.Printf("Failed to read GitHub API response: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("Error reading GitHub API response: %v", err)))
+		return
+	}
+
+	// Handle different GitHub API responses
+	switch resp.StatusCode {
+	case http.StatusCreated: // 201 - Invitation sent
+		h.Log.Printf("Invitation sent to user %s for repository %s/%s", username, owner, repo)
+
+		// Create a empty body and add just the message
+		finalBody, err := AddFieldToResponse([]byte("{}"), "message", "Invitation sent to user "+username+" for repository "+owner+"/"+repo)
+		if err != nil {
+			h.Log.Printf("Failed to add message field to response: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("Error adding message field: %v", err)))
+			return
+		}
+
+		// print log final body
+		h.Log.Printf("[Final body]: %s", string(finalBody))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted) // Change 201 to 202 as required
+		w.Write(finalBody)
+
+	case http.StatusNoContent: // 204 - User already collaborator
+		h.Log.Printf("User %s is already a collaborator of repository %s/%s", username, owner, repo)
+		w.WriteHeader(http.StatusNoContent)
+		// No body for 204 responses
+
+	default:
+		// Forward the error status and body from GitHub API
+		h.Log.Printf("GitHub API returned status %d for user %s and repository %s/%s", resp.StatusCode, username, owner, repo)
+		w.WriteHeader(resp.StatusCode)
+		if len(respBody) > 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(respBody)
+		} else {
+			w.Write([]byte(fmt.Sprintf("Error: %s", resp.Status)))
+		}
+	}
+
+	h.Log.Printf("Successfully processed collaborator request for %s", req.URL)
 }
