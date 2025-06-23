@@ -103,7 +103,7 @@ func AddFieldToResponse(body []byte, fieldName string, fieldValue interface{}) (
 
 // Invitations handling
 // This section deals with GitHub repository invitations, allowing us to check if a user has been invited to collaborate on a repository.
-// It includes parsing the invitation response, checking if a user exists in the invitations, and building a response similar to the collaborator permission response.
+// It includes parsing the invitation response and checking if a user exists in the invitations
 
 // GitHubInvitation represents a GitHub repository invitation
 type GitHubInvitation struct {
@@ -133,7 +133,7 @@ type GitHubInvitation struct {
 	Expired     bool   `json:"expired"`
 }
 
-// parseInvitations parses invitation response body into slice of GitHubInvitation
+// parseInvitations parses invitation response body into slice of GitHubInvitation(s)
 func parseInvitations(inviteBody []byte) ([]GitHubInvitation, error) {
 	var invitations []GitHubInvitation
 	if err := json.Unmarshal(inviteBody, &invitations); err != nil {
@@ -159,9 +159,75 @@ func getUserInvitationFromPage(inviteBody []byte, username string) (*GitHubInvit
 	return nil, false
 }
 
+// Function to change the `permissions` (with the `s`) field in the request body of a PATCH request of an invitation
+// before sending it to the GitHub API
+// We need to change the `permission` field to `permissions` and map the permission value
+// Note that in the case of Invitations, the `permissions` field is just a string with a single permission value
+// and not an object like in the collaborator response.
+func CorrectGitHubUserPermissionsFieldReqBody(body []byte) ([]byte, error) {
+	var data map[string]interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal request body: %w", err)
+	}
+
+	// Check if the permission field exists, save content, add a new `permissions` field with the mapping and remove the old `permission` field
+	permission, exists := data["permission"].(string)
+	if !exists {
+		return body, nil // No permission field to correct
+	}
+
+	// Map the permission to the permissions field
+	var permissions string
+	switch permission {
+	case "pull":
+		permissions = "read"
+	case "push":
+		permissions = "write"
+	case "admin":
+		permissions = "admin"
+	case "maintain":
+		permissions = "maintain"
+	case "triage":
+		permissions = "triage"
+	default:
+		permissions = permission // Use the permission as is if it doesn't match any known roles
+	}
+
+	// Update the data map with the new permissions field
+	if data["permissions"] == nil {
+		data["permissions"] = make(map[string]interface{})
+	}
+	data["permissions"] = permissions
+
+	// Remove the old permission field
+	if _, exists := data["permission"]; exists {
+		delete(data, "permission")
+	}
+
+	return json.Marshal(data)
+}
+
+// function to read the field from a body and return the value (generic function)
+func ReadFieldFromBody(body []byte, fieldName string) (interface{}, error) {
+	var data map[string]interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	// Check if the field exists in the data map
+	value, exists := data[fieldName]
+	if !exists {
+		return nil, fmt.Errorf("field %s not found", fieldName)
+	}
+
+	return value, nil
+}
+
+// Note: The following commented-out function is not used in the current implementation
 // In the case of Invitations, we cannot leverage role_name field since it is not present in the response.
 // Instead, we create a permissions object based on the single permission string from the invitation
 // createPermissionsObject creates a permissions object based on the single permission string
+/*
 func createPermissionsObject(permission string) map[string]bool {
 	permissions := map[string]bool{
 		"admin":    false,
@@ -195,9 +261,11 @@ func createPermissionsObject(permission string) map[string]bool {
 
 	return permissions
 }
+*/
 
 // BuildInvitationResponse builds a response similar to the collaborator permission response
 // but with additional invitation status information
+/*
 func BuildResponseFromInvitatation(invitation *GitHubInvitation, username string) ([]byte, error) {
 	// Map GitHub API permission to our expected format (same as CorrectGitHubUserPermissionField)
 	// Note that in the case of invitations the `invitation.Permissions` field is the same as `role_name``: a single string with `read` and `write` permissions to be corrected to `pull` and `push` respectively, while `admin`, `maintain`, and `triage` remain unchanged.
@@ -271,3 +339,4 @@ func BuildResponseFromInvitatation(invitation *GitHubInvitation, username string
 
 	return json.Marshal(response)
 }
+*/

@@ -279,6 +279,45 @@ info:
   version: "1.0"
 paths:
   /repository/{owner}/{repo}/collaborators/{username}:
+    patch:
+      consumes:
+      - application/json
+      description: Update the permission of an existing collaborator or pending invitation
+      operationId: patch-repo-collaborator
+      parameters:
+      - description: Owner of the repository
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Name of the repository
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: Username of the collaborator
+        in: path
+        name: username
+        required: true
+        type: string
+      - description: New permission to set (`pull`, `push`, `admin`, `maintain`, `triage`)
+        in: body
+        name: permissions
+        required: true
+        schema:
+          $ref: '#/definitions/repo.Permission'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Permission updated successfully
+          schema:
+            $ref: '#/definitions/repo.Message'
+        "202":
+          description: Invitation permission updated
+          schema:
+            $ref: '#/definitions/repo.Message'
+      summary: Update repository collaborator permission or invitation
     post:
       consumes:
       - application/json

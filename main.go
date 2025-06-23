@@ -78,10 +78,17 @@ func main() {
 	healthy := int32(0)
 	ready := int32(0)
 
-	// Business logic routes
+	// Business logic routes to handle some GitHub API's endpoints
+
+	// Collaborator
 	mux.Handle("GET /repository/{owner}/{repo}/collaborators/{username}/permission", repo.GetRepo(opts))
 	mux.Handle("POST /repository/{owner}/{repo}/collaborators/{username}", repo.PostRepo(opts))
+	mux.Handle("PATCH /repository/{owner}/{repo}/collaborators/{username}", repo.PatchRepo(opts))
+
+	// TeamRepo
 	mux.Handle("GET /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}", teamrepo.GetTeamRepo(opts))
+
+	// Swagger UI
 	mux.Handle("/swagger/", httpSwagger.WrapHandler)
 
 	// Kubernetes health check endpoints

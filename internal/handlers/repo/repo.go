@@ -21,14 +21,25 @@ func PostRepo(opts handlers.HandlerOptions) handlers.Handler {
 	}
 }
 
+func PatchRepo(opts handlers.HandlerOptions) handlers.Handler {
+	return &patchHandler{
+		HandlerOptions: opts,
+	}
+}
+
 var _ handlers.Handler = &getHandler{}
 var _ handlers.Handler = &postHandler{}
+var _ handlers.Handler = &patchHandler{}
 
 type getHandler struct {
 	handlers.HandlerOptions
 }
 
 type postHandler struct {
+	handlers.HandlerOptions
+}
+
+type patchHandler struct {
 	handlers.HandlerOptions
 }
 
@@ -123,8 +134,16 @@ func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return // Early return
 		}
 
+		permissionGranted, err := ReadFieldFromBody(correctedBody, "permission")
+		if err != nil {
+			h.Log.Print("Failed to read permission from corrected body:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprint("Error: ", err)))
+			return
+		}
+
 		// add field "message" to the response
-		finalBody, err := AddFieldToResponse(correctedBody, "message", "User is a collaborator of the repository")
+		finalBody, err := AddFieldToResponse(correctedBody, "message", "User is a collaborator of the repository "+owner+"/"+repo+" with permission "+fmt.Sprintf("%s", permissionGranted))
 		if err != nil {
 			h.Log.Print("Failed to add message field:", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -178,6 +197,15 @@ func (h *postHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("Error reading request body: %v", err)))
 		return
 	}
+
+	// get  the permission from the body
+	permissionToBeGranted, err := ReadFieldFromBody(body, "permission")
+	if err != nil {
+		h.Log.Printf("Failed to read permission from request body: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(fmt.Sprintf("Error reading permission from request body: %v", err)))
+		return
+	}
 	defer r.Body.Close()
 
 	// Create request to GitHub API
@@ -226,16 +254,13 @@ func (h *postHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.Log.Printf("Invitation sent to user %s for repository %s/%s", username, owner, repo)
 
 		// Create a empty body and add just the message
-		finalBody, err := AddFieldToResponse([]byte("{}"), "message", "Invitation sent to user "+username+" for repository "+owner+"/"+repo)
+		finalBody, err := AddFieldToResponse([]byte("{}"), "message", "Invitation sent to user "+username+" for repository "+owner+"/"+repo+" with permission "+fmt.Sprintf("%s", permissionToBeGranted))
 		if err != nil {
 			h.Log.Printf("Failed to add message field to response: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(fmt.Sprintf("Error adding message field: %v", err)))
 			return
 		}
-
-		// print log final body
-		h.Log.Printf("[Final body]: %s", string(finalBody))
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted) // Change 201 to 202 as required
@@ -259,4 +284,296 @@ func (h *postHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.Log.Printf("Successfully processed collaborator request for %s", req.URL)
+}
+
+// @Summary Update repository collaborator permission or invitation
+// @Description Update the permission of an existing collaborator or pending invitation
+// @ID patch-repo-collaborator
+// @Param owner path string true "Owner of the repository"
+// @Param repo path string true "Name of the repository"
+// @Param username path string true "Username of the collaborator"
+// @Param permissions body repo.Permission true "New permission to set (`pull`, `push`, `admin`, `maintain`, `triage`)"
+// @Accept json
+// @Produce json
+// @Success 200 {object} repo.Message "Permission updated successfully"
+// @Success 202 {object} repo.Message "Invitation permission updated"
+// @Router /repository/{owner}/{repo}/collaborators/{username} [patch]
+func (h *patchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	owner := r.PathValue("owner")
+	repo := r.PathValue("repo")
+	username := r.PathValue("username")
+
+	h.Log.Printf("Updating permission for user %s in repository %s/%s", username, owner, repo)
+
+	authHeader := r.Header.Get("Authorization")
+
+	// Read the request body (permission data)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.Log.Printf("Failed to read request body: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(fmt.Sprintf("Error reading request body: %v", err)))
+		return
+	}
+
+	// read which permission was granted (in original request body)
+	permissionToBeGranted, err := ReadFieldFromBody(body, "permission")
+	if err != nil {
+		h.Log.Printf("Failed to read permission from request body: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("Error reading permission from request body: %v", err)))
+		return
+	}
+	h.Log.Printf("Requested permission for user %s: %s", username, permissionToBeGranted)
+
+	defer r.Body.Close()
+
+	// First, check if user is already a collaborator
+	collaboratorReq, err := http.NewRequest("GET", "https://api.github.com/repos/"+owner+"/"+repo+"/collaborators/"+username, nil)
+	if err != nil {
+		h.Log.Printf("Failed to create collaborator check request: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("Error creating request: %v", err)))
+		return
+	}
+
+	if len(authHeader) > 0 {
+		collaboratorReq.Header.Set("Authorization", authHeader)
+	}
+
+	collaboratorResp, err := h.Client.Do(collaboratorReq)
+	if err != nil {
+		h.Log.Printf("Failed to check collaborator status: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("Error checking collaborator status: %v", err)))
+		return
+	}
+	defer collaboratorResp.Body.Close()
+
+	if collaboratorResp.StatusCode == http.StatusNoContent {
+
+		// User is already a collaborator,
+		// update their permission
+		h.Log.Printf("User %s is already a collaborator, updating permission", username)
+
+		updateReq, err := http.NewRequest("PUT", "https://api.github.com/repos/"+owner+"/"+repo+"/collaborators/"+username, nil)
+		if err != nil {
+			h.Log.Printf("Failed to create update request: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("Error creating update request: %v", err)))
+			return
+		}
+
+		if len(authHeader) > 0 {
+			updateReq.Header.Set("Authorization", authHeader)
+		}
+
+		if len(body) > 0 {
+			updateReq.Header.Set("Content-Type", "application/json")
+			updateReq.Body = io.NopCloser(bytes.NewReader(body))
+			updateReq.ContentLength = int64(len(body))
+		}
+
+		updateResp, err := h.Client.Do(updateReq)
+		if err != nil {
+			h.Log.Printf("Failed to update collaborator permission: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("Error updating permission: %v", err)))
+			return
+		}
+		defer updateResp.Body.Close()
+
+		updateRespBody, err := io.ReadAll(updateResp.Body)
+		if err != nil {
+			h.Log.Printf("Failed to read update response: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("Error reading response: %v", err)))
+			return
+		}
+
+		if updateResp.StatusCode == http.StatusNoContent {
+
+			// Permission updated successfully
+			finalBody, err := AddFieldToResponse([]byte("{}"), "message", "Permission updated successfully for collaborator "+username+" with permission "+fmt.Sprintf("%s", permissionToBeGranted))
+			if err != nil {
+				h.Log.Printf("Failed to add message field: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(fmt.Sprintf("Error adding message field: %v", err)))
+				return
+			}
+
+			h.Log.Printf("Successfully updated permission for collaborator %s", username)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write(finalBody)
+			return
+		} else {
+			// Forward error from GitHub API
+			h.Log.Printf("GitHub API returned error %d when updating collaborator", updateResp.StatusCode)
+			w.WriteHeader(updateResp.StatusCode)
+			if len(updateRespBody) > 0 {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write(updateRespBody)
+			} else {
+				w.Write([]byte(fmt.Sprintf("Error: %s", updateResp.Status)))
+			}
+			return
+		}
+	}
+
+	// User is not a collaborator, check if they have a pending invitation
+	h.Log.Printf("User %s is not a collaborator, checking for pending invitations", username)
+
+	invitation, found, err := h.findUserInvitation(owner, repo, username, authHeader)
+	if err != nil {
+		h.Log.Printf("Error checking invitations: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("Error checking invitations: %v", err)))
+		return
+	}
+
+	if found {
+		// User has a pending invitation, update it
+		h.Log.Printf("Found pending invitation for user %s (Invitation ID: %d), updating permission", username, invitation.ID)
+
+		updateInviteReq, err := http.NewRequest("PATCH", fmt.Sprintf("https://api.github.com/repos/%s/%s/invitations/%d", owner, repo, invitation.ID), nil)
+		if err != nil {
+			h.Log.Printf("Failed to create invitation update request: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("Error creating invitation update request: %v", err)))
+			return
+		}
+
+		if len(authHeader) > 0 {
+			updateInviteReq.Header.Set("Authorization", authHeader)
+		}
+
+		if len(body) > 0 {
+			body, err = CorrectGitHubUserPermissionsFieldReqBody(body) // Change field name and mapping `pull` to `read`, `push` to `write`
+			if err != nil {
+				h.Log.Printf("Failed to change permissions field: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(fmt.Sprintf("Error creating invitation update request: %v", err)))
+				return
+			}
+
+			updateInviteReq.Header.Set("Content-Type", "application/json")
+			updateInviteReq.Body = io.NopCloser(bytes.NewReader(body))
+			updateInviteReq.ContentLength = int64(len(body))
+		}
+
+		updateInviteResp, err := h.Client.Do(updateInviteReq)
+		if err != nil {
+			h.Log.Printf("Failed to update invitation: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("Error updating invitation: %v", err)))
+			return
+		}
+		defer updateInviteResp.Body.Close()
+
+		updateInviteRespBody, err := io.ReadAll(updateInviteResp.Body)
+		if err != nil {
+			h.Log.Printf("Failed to read invitation update response: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("Error reading invitation response: %v", err)))
+			return
+		}
+
+		if updateInviteResp.StatusCode == http.StatusOK {
+
+			// Invitation updated successfully
+			finalBody, err := AddFieldToResponse([]byte("{}"), "message", "Invitation permission updated successfully for user "+username+" with permission "+fmt.Sprintf("%s", permissionToBeGranted))
+			if err != nil {
+				h.Log.Printf("Failed to add message field: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(fmt.Sprintf("Error adding message field: %v", err)))
+				return
+			}
+
+			h.Log.Printf("Successfully updated invitation permission for user %s", username)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted) // 202 for invitation update
+			w.Write(finalBody)
+			return
+		} else {
+			// Forward error from GitHub API
+			h.Log.Printf("GitHub API returned error %d when updating invitation", updateInviteResp.StatusCode)
+			w.WriteHeader(updateInviteResp.StatusCode)
+			if len(updateInviteRespBody) > 0 {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write(updateInviteRespBody)
+			} else {
+				w.Write([]byte(fmt.Sprintf("Error: %s", updateInviteResp.Status)))
+			}
+			return
+		}
+	}
+
+	// User is neither a collaborator nor has a pending invitation
+	h.Log.Printf("User %s has no collaborator status or pending invitation", username)
+	w.WriteHeader(http.StatusNotFound)
+	finalBody, err := AddFieldToResponse([]byte("{}"), "message", "User "+username+" is not a collaborator and has no pending invitation")
+	if err != nil {
+		h.Log.Printf("Failed to add message field: %v", err)
+		w.Write([]byte(fmt.Sprintf("User %s not found as collaborator or invitee", username)))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(finalBody)
+}
+
+// findUserInvitation searches for a user invitation across all pages
+func (h *patchHandler) findUserInvitation(owner, repo, username, authHeader string) (*GitHubInvitation, bool, error) {
+	h.Log.Printf("Checking invitations for user %s in repository %s/%s", username, owner, repo)
+	page := 1
+	perPage := 30
+
+	for {
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://api.github.com/repos/%s/%s/invitations?per_page=%d&page=%d", owner, repo, perPage, page), nil)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if len(authHeader) > 0 {
+			req.Header.Set("Authorization", authHeader)
+		}
+
+		inviteResp, err := h.Client.Do(req)
+		if err != nil {
+			return nil, false, err
+		}
+		defer inviteResp.Body.Close()
+
+		// If we can't get invitations (not 200 OK), return not found
+		if inviteResp.StatusCode != http.StatusOK {
+			h.Log.Printf("Failed to get invitations, status: %d", inviteResp.StatusCode)
+			return nil, false, nil
+		}
+
+		inviteBody, err := io.ReadAll(inviteResp.Body)
+		if err != nil {
+			return nil, false, err
+		}
+
+		// Check if username exists in current page of invitations
+		if invitation, found := getUserInvitationFromPage(inviteBody, username); found {
+			return invitation, true, nil
+		}
+
+		// Check if we have more pages
+		// If we got less than perPage results, we've reached the last page
+		invitations, err := parseInvitations(inviteBody)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if len(invitations) < perPage {
+			// Last page reached, user not found
+			break
+		}
+
+		page++
+	}
+
+	return nil, false, nil
 }
