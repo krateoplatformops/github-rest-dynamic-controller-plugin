@@ -7,20 +7,35 @@ In particular, this plugin is design to work alongside the [`github-provider-kog
 ## Summary
 
 - [Summary](#summary)
-- [API](#api)
-  - [1) Get User Permission in a Repository](#1-get-user-permission-in-a-repository)
-  - [2) Get Team Permission in a Repository](#2-get-team-permission-in-a-repository)
+- [API Endpoints](#api-endpoints)
+  - [Collaborator](#collaborator)
+    - [GET](#get)
+    - [POST](#post)
+    - [PATCH](#patch)
+    - [DELETE](#delete)
+  - [TeamRepo](#teamrepo)
 - [Swagger Documentation](#swagger-documentation)
 - [Authentication](#authentication)
 
-## API
+## API Endpoints
 
-### 1) Get User Permission in a Repository
+### Collaborator
 
-- **Endpoint:** `/repository/{owner}/{repo}/collaborators/{username}/permission`
-- **Description:** Retrieves the permission level of a specified user in a given repository. The endpoint extracts the `owner`, `repo`, and `username` from the request path, checks if the user is a collaborator, and then fetches the user's permission level from the GitHub API. The result is returned in the response body.
+#### GET 
 
-Sample response:
+- **Endpoint:** 
+`GET /repository/{owner}/{repo}/collaborators/{username}/permission`
+
+- **Description:** 
+Retrieves the permission level of a specified user in a given repository. 
+The endpoint extracts the `owner`, `repo`, and `username` from the request path, makes a first API call to the GitHub API to check if the user is a collaborator with the endpoint `/repos/{owner}/{repo}/collaborators/{username}`, and then makes a second API call to retrieve the permission level of the user with the endpoint `/repos/{owner}/{repo}/collaborators/{username}/permission`. 
+In addition, the response is adjusted to fix inconsistencies in the GitHub API response (legacy issues), where the `permission` field is returned as `admin`, `write`,`read`, `triage` or `maintain`, but the plugin converts it to `admin`, `push`, `pull`, `triage` or `maintain`. 
+The `permissions`, `html_url` fields are also included at the root level of the response.
+
+- **Why is needed?**  
+After removing a collaborator from a repository, attempting to verify the status of the collaborator using the GitHub API endpoint `/repos/{owner}/{repo}/collaborators/{username}/permission` results in a 200 OK response instead of the expected 404 Not Found.
+
+- **Sample response**:
 ```json
 {
   "html_url":"<REDACTED>",  // Adjusted field
@@ -66,15 +81,55 @@ Sample response:
 }
 ```
 
-> [!NOTE]  
-> Since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the `role_name` field which instead can be {`admin`, `maintain`, `push`, `triage`, `pull`}. The `permissions` field is also included at root level to provide detailed permission levels.
+#### POST
 
-### 2) Get Team Permission in a Repository
+- **Endpoint:** 
+`POST /repository/{owner}/{repo}/collaborators/{username}`
 
-- **Endpoint:** `/teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}`
-- **Description:** Retrieves the permission level of a specified team in a given repository. The endpoint extracts the `organization`, `team_slug`, `owner`, and `repo` from the request path, logs the API call, and forwards the request to the GitHub API with the necessary headers. The response from GitHub is processed to adjust the repository permissions before being returned to the client.
+- **Description:** 
+Add a repository collaborator with a specified permission level.
+If the user is not a member of the organization, an invitatation to be a repository collaborator is sent ("external collaborator").
 
-Sample response:
+
+- **Why is needed?**
+This endpoint is needed to differentiate between adding a collaborator to a repository and inviting a user not in the organization to become a collaborator of a repository.
+
+#### PATCH
+
+- **Endpoint:** 
+`PATCH /repository/{owner}/{repo}/collaborators/{username}`
+
+- **Description:** 
+Add a repository collaborator with a specified permission level.
+If the user is not a member of the organization, an invitatation to be a repository collaborator is sent ("external collaborator").
+
+
+- **Why is needed?**
+This endpoint is needed to differentiate between updateing a collaborator's permission level in a repository and updating the invitation's permission level for a user not in the organization.
+
+#### DELETE
+- **Endpoint:**
+`DELETE /repository/{owner}/{repo}/collaborators/{username}`
+
+- **Description:**
+Removes a repository collaborator.
+If the user is not a member of the organization, the invitation to be a repository collaborator is revoked ("external collaborator").
+
+- **Why is needed?**
+This endpoint is needed to differentiate between removing a collaborator from a repository and revoking the invitation for a user not in the organization to become a collaborator of a repository.
+
+### TeamRepo
+
+#### 2) GET
+
+- **Endpoint:** 
+`/teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}`
+
+- **Description:** 
+Retrieves the permission level of a specified team in a given repository. The endpoint extracts the `organization`, `team_slug`, `owner`, and `repo` from the request path, logs the API call, and forwards the request to the GitHub API with the necessary headers. The response from GitHub is processed to adjust the repository permissions before being returned to the client.
+
+- **Sample response**:
+
 ```json
 {
   "allow_auto_merge":false,
