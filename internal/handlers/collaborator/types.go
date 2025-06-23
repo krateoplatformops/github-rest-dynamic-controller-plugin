@@ -2,7 +2,7 @@ package collaborator
 
 type RepoPermissions struct {
 	HTMLURL     string      `json:"html_url"`
-	ID          int         `json:"id"`
+	ID          int         `json:"id"` // user ID
 	Permission  string      `json:"permission"`
 	Permissions Permissions `json:"permissions"`
 	RoleName    string      `json:"role_name"`

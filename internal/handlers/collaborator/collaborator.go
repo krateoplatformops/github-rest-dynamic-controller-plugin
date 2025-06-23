@@ -124,7 +124,7 @@ func (h *baseHandler) writeJSONResponse(w http.ResponseWriter, statusCode int, b
 }
 
 func (h *baseHandler) findUserInvitation(owner, repo, username, authHeader string) (*GitHubInvitation, bool, error) {
-	return findUserInvitationHelper(h.Client.(*http.Client), h.Log, owner, repo, username, authHeader)
+	return findUserInvitationHelper(h.Client, h.Log, owner, repo, username, authHeader)
 }
 
 // GET handler implementation
@@ -576,8 +576,12 @@ func (h *deleteHandler) cancelInvitation(w http.ResponseWriter, owner, repo, use
 	return nil
 }
 
+type httpDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 // Common helper function for finding user invitations
-func findUserInvitationHelper(client *http.Client, logger interface {
+func findUserInvitationHelper(client httpDoer, logger interface {
 	Printf(string, ...interface{})
 	Print(...interface{})
 }, owner, repo, username, authHeader string) (*GitHubInvitation, bool, error) {
