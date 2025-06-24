@@ -12,11 +12,11 @@ import (
 	"time"
 
 	_ "github.com/krateoplatformops/github-rest-dynamic-controller-plugin/docs"
-	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/env"
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers"
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/collaborator"
 	"github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/health"
 	teamrepo "github.com/krateoplatformops/github-rest-dynamic-controller-plugin/internal/handlers/teamRepo"
+	"github.com/krateoplatformops/plumbing/env"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	httpSwagger "github.com/swaggo/http-swagger"
