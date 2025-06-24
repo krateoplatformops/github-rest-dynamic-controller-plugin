@@ -1,26 +1,50 @@
 # Krateo Github Plugin for `rest-dynamic-controller`
 
-This web service addresses some inconsistencies in the GitHub API's. 
-This web service is written for [`rest-dynamic-controller`](https://github.com/krateoplatformops/rest-dynamic-controller/), the dynamic controller instaciated by [`oasgen-provider`](https://github.com/krateoplatformops/oasgen-provider).
-In particular, this plugin is design to work alongside the [`github-provider-kog`](https://github.com/krateoplatformops/github-provider-kog-chart).
+A specialized web service that addresses inconsistencies in the GitHub REST API, designed to work with the [`rest-dynamic-controller`](https://github.com/krateoplatformops/rest-dynamic-controller/) and [`github-provider-kog`](https://github.com/krateoplatformops/github-provider-kog-chart)
+
 
 ## Summary
 
 - [Summary](#summary)
-- [API](#api)
-  - [1) Get User Permission in a Repository](#1-get-user-permission-in-a-repository)
-  - [2) Get Team Permission in a Repository](#2-get-team-permission-in-a-repository)
+- [API Endpoints](#api-endpoints)
+  - [Collaborator](#collaborator)
+    - [Get Repository Collaborator Permission](#get-repository-collaborator-permission)
+    - [Add Repository Collaborator](#add-repository-collaborator)
+    - [Update Repository Collaborator Permission](#update-repository-collaborator-permission)
+    - [Remove Repository Collaborator](#remove-repository-collaborator)
+  - [TeamRepo](#teamrepo)
+    - [Get TeamRepo Permission](#get-teamrepo-permission)
 - [Swagger Documentation](#swagger-documentation)
+- [GitHub API Reference](#github-api-reference)
 - [Authentication](#authentication)
 
-## API
 
-### 1) Get User Permission in a Repository
+## API Endpoints
 
-- **Endpoint:** `/repository/{owner}/{repo}/collaborators/{username}/permission`
-- **Description:** Retrieves the permission level of a specified user in a given repository. The endpoint extracts the `owner`, `repo`, and `username` from the request path, checks if the user is a collaborator, and then fetches the user's permission level from the GitHub API. The result is returned in the response body.
+### Collaborator
 
-Sample response:
+All collaborator endpoints handle both direct repository collaborators and external collaborators invitations (users not in the organization).
+
+#### Get Repository Collaborator Permission
+
+```http
+GET /repository/{owner}/{repo}/collaborators/{username}/permission
+```
+
+**Description**: 
+Retrieves the permission level of a user for a specific repository.
+
+**Parameters**:
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name  
+- `username` (string, required): Username to check
+
+**Why This Endpoint Exists**: 
+- The standard GitHub API returns `200 OK` instead of `404 Not Found` when checking permissions for users who were previously collaborators but have been removed.
+- It normalizes permission values: `write` → `push`, `read` → `pull`.
+- It includes `html_url`, `id`, and `permissions` at root level.
+
+**Example response**:
 ```json
 {
   "html_url":"<REDACTED>",  // Adjusted field
@@ -66,15 +90,101 @@ Sample response:
 }
 ```
 
-> [!NOTE]  
-> Since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the `role_name` field which instead can be {`admin`, `maintain`, `push`, `triage`, `pull`}. The `permissions` field is also included at root level to provide detailed permission levels.
+#### Add Repository Collaborator
 
-### 2) Get Team Permission in a Repository
+```http
+POST /repository/{owner}/{repo}/collaborators/{username}
+```
 
-- **Endpoint:** `/teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}`
-- **Description:** Retrieves the permission level of a specified team in a given repository. The endpoint extracts the `organization`, `team_slug`, `owner`, and `repo` from the request path, logs the API call, and forwards the request to the GitHub API with the necessary headers. The response from GitHub is processed to adjust the repository permissions before being returned to the client.
+**Description**: 
+Adds a user as a repository collaborator or sends an invitation if they're not an organization member.
 
-Sample response:
+**Request Body**:
+```json
+{
+  "permission": "push"
+}
+```
+
+**Permission Values**:
+`pull`, `push`, `admin`, `maintain`, `triage`
+
+**Why This Endpoint Exists**:
+- GitHub REST API already provides the dual functionality of adding collaborators and sending invitations with a single endpoint.
+- This endpoint returns `202 Accepted` when an invitation is sent to external users, allowing the `rest-dynamic-controller` to maintain proper resource state management ("pending" state in Collaborator custom resource).
+
+**Responses**:
+- `202 Accepted`: Invitation sent to external user
+- `204 No Content`: User added as direct collaborator
+
+#### Update Repository Collaborator Permission
+
+```http
+PATCH /repository/{owner}/{repo}/collaborators/{username}
+```
+
+**Description**: 
+Updates permission level for existing collaborators or pending invitations.
+
+**Request Body**:
+```json
+{
+  "permission": "admin"
+}
+```
+
+**Permission Values**: 
+`pull`, `push`, `admin`, `maintain`, `triage`
+
+**Why This Endpoint Exists**:
+- It handles both active collaborators and pending invitations with 2 differnte calls to the GitHub API.
+- It returns `202 Accepted` when an invitation is sent to external users, allowing the `rest-dynamic-controller` to maintain proper resource state management ("pending" state in Collaborator custom resource).
+
+**Responses**:
+- `200 OK`: Collaborator permission updated
+- `202 Accepted`: Invitation permission updated
+
+#### Remove Repository Collaborator
+
+```http
+DELETE /repository/{owner}/{repo}/collaborators/{username}
+```
+
+**Description**: 
+Removes a collaborator or cancels a pending invitation.
+
+**Why This Endpoint Exists**:
+- It provides unified handling for both removing active collaborators and canceling pending invitations with 2 different calls to the GitHub API.
+
+**Responses**:
+- `200 OK`: Collaborator removed
+- `202 Accepted`: Invitation cancelled  
+- `404 Not Found`: User not found as collaborator or invitee
+
+### TeamRepo
+
+#### Get TeamRepo Permission
+
+```http
+GET /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}
+```
+
+**Description**: 
+Retrieves repository permissions for a specific team.
+
+**Parameters**:
+- `org` (string, required): Organization name
+- `team_slug` (string, required): Team slug
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+
+**Why This Endpoint Exists**:
+- It sets the required `application/vnd.github.v3.repository+json` Accept header. Without this header, GitHub API returns `204 No Content` instead of permission details.
+- It normalizes permission values (`write` → `push`, `read` → `pull`).
+- It adds `owner` field at root level for easier access.
+
+**Sample response**:
+
 ```json
 {
   "allow_auto_merge":false,
@@ -163,13 +273,14 @@ Sample response:
 }   
 ```
 
-> [!NOTE]  
-> Since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the `role_name` field which instead can be {`admin`, `maintain`, `push`, `triage`, `pull`}. The `owner` field is also adjusted to be just a string instead of an object. The `permissions` field (object) is not included in this response.
-
 ## Swagger Documentation
 
 For more detailed information about the API endpoints, please refer to the Swagger documentation available at `/swagger/index.html` endpoint of the service.
 
+## GitHub API Reference
+
+For complete GitHub REST API documentation, visit: [GitHub REST API docs](https://docs.github.com/en/rest?apiVersion=2022-11-28)
+
 ## Authentication
 
-The plugin will forward the `Authorization` header passed in the request to this plugin to the GitHub API.
+The plugin will forward the `Authorization` header passed in the request to this plugin to the GitHub REST API.
