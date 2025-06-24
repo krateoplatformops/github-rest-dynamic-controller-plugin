@@ -36,15 +36,15 @@ It retrieves the permission level of a user for a specific repository if the use
 If the user is not a collaborator, it returns `404 Not Found`.
 Therefore, even if the user is invited to be an external collaborator, it will return `404 Not Found` if the user has not accepted the invitation yet.
 
-**Parameters**:
-- `owner` (string, required): Repository owner
-- `repo` (string, required): Repository name  
-- `username` (string, required): Username to check
-
 **Why This Endpoint Exists**: 
 - The standard GitHub API returns `200 OK` instead of `404 Not Found` when checking permissions for users who were previously collaborators but have been removed.
 - It normalizes permission values: `write` → `push`, `read` → `pull`.
 - It includes `html_url`, `id`, and `permissions` at root level.
+
+**Path parameters**:
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name  
+- `username` (string, required): Username to check permission for
 
 **Example response**:
 ```json
@@ -101,6 +101,15 @@ POST /repository/{owner}/{repo}/collaborators/{username}
 **Description**: 
 It adds a user as a repository collaborator or sends an invitation if they are not an organization member.
 
+**Why This Endpoint Exists**:
+- GitHub REST API already provides the dual functionality of adding collaborators and sending invitations with a single endpoint.
+- However, this endpoint returns `202 Accepted` when an invitation is sent to external users, allowing the `rest-dynamic-controller` to maintain proper resource state management ("pending" state in Collaborator custom resource).
+
+**Path parameters**:
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `username` (string, required): Username to add as collaborator
+
 **Request Body**:
 ```json
 {
@@ -108,12 +117,8 @@ It adds a user as a repository collaborator or sends an invitation if they are n
 }
 ```
 
-**Permission Values**:
+**Permission Values (in request body)**:
 `pull`, `push`, `admin`, `maintain`, `triage`
-
-**Why This Endpoint Exists**:
-- GitHub REST API already provides the dual functionality of adding collaborators and sending invitations with a single endpoint.
-- However, this endpoint returns `202 Accepted` when an invitation is sent to external users, allowing the `rest-dynamic-controller` to maintain proper resource state management ("pending" state in Collaborator custom resource).
 
 **Responses**:
 - `202 Accepted`: Invitation sent to external user
@@ -128,6 +133,16 @@ PATCH /repository/{owner}/{repo}/collaborators/{username}
 **Description**: 
 It updates permission level for existing collaborators or pending invitations.
 
+**Why This Endpoint Exists**:
+- It handles both active collaborators and pending invitations with 2 differents calls to the GitHub API.
+- It returns `202 Accepted` when an invitation is sent to external users, allowing the `rest-dynamic-controller` to maintain proper resource state management ("pending" state in Collaborator custom resource).
+- It normalizes permission values (`write` → `push`, `read` → `pull`) when necessary.
+
+**Path parameters**:
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `username` (string, required): Username to update permission for
+
 **Request Body**:
 ```json
 {
@@ -135,13 +150,8 @@ It updates permission level for existing collaborators or pending invitations.
 }
 ```
 
-**Permission Values**: 
+**Permission Values (in request body)**:
 `pull`, `push`, `admin`, `maintain`, `triage`
-
-**Why This Endpoint Exists**:
-- It handles both active collaborators and pending invitations with 2 differents calls to the GitHub API.
-- It returns `202 Accepted` when an invitation is sent to external users, allowing the `rest-dynamic-controller` to maintain proper resource state management ("pending" state in Collaborator custom resource).
-- It normalizes permission values (`write` → `push`, `read` → `pull`) when necessary.
 
 **Responses**:
 - `200 OK`: Collaborator permission updated
@@ -159,6 +169,11 @@ It removes a collaborator or cancels a pending invitation.
 **Why This Endpoint Exists**:
 - It provides unified handling for both removing active collaborators and canceling pending invitations with 2 different calls to the GitHub API based on the user status.
 
+**Path parameters**:
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `username` (string, required): Username to remove as collaborator or cancel invitation for
+
 **Responses**:
 - `200 OK`: Collaborator removed
 - `202 Accepted`: Invitation cancelled  
@@ -175,16 +190,16 @@ GET /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}
 **Description**: 
 It retrieves repository permissions for a specific team.
 
+**Why This Endpoint Exists**:
+- It sets the required `application/vnd.github.v3.repository+json` Accept header. Without this header, GitHub API returns `204 No Content` instead of permission details.
+- It normalizes permission values (`write` → `push`, `read` → `pull`).
+- It adds `owner` field at root level for easier access.
+
 **Parameters**:
 - `org` (string, required): Organization name
 - `team_slug` (string, required): Team slug
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
-
-**Why This Endpoint Exists**:
-- It sets the required `application/vnd.github.v3.repository+json` Accept header. Without this header, GitHub API returns `204 No Content` instead of permission details.
-- It normalizes permission values (`write` → `push`, `read` → `pull`).
-- It adds `owner` field at root level for easier access.
 
 **Sample response**:
 
