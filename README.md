@@ -110,7 +110,8 @@ Adds a user as a repository collaborator or sends an invitation if they're not a
 `pull`, `push`, `admin`, `maintain`, `triage`
 
 **Why This Endpoint Exists**:
-- It returns `202 Accepted` when an invitation is sent to external users, allowing the `rest-dynamic-controller` to maintain proper resource state management ("pending" state in Collaborator custom resource).
+- GitHub REST API already provides the dual functionality of adding collaborators and sending invitations with a single endpoint.
+- This endpoint returns `202 Accepted` when an invitation is sent to external users, allowing the `rest-dynamic-controller` to maintain proper resource state management ("pending" state in Collaborator custom resource).
 
 **Responses**:
 - `202 Accepted`: Invitation sent to external user
@@ -136,7 +137,8 @@ Updates permission level for existing collaborators or pending invitations.
 `pull`, `push`, `admin`, `maintain`, `triage`
 
 **Why This Endpoint Exists**:
-- It handles both active collaborators and pending invitations, returning appropriate status codes for state management.
+- It handles both active collaborators and pending invitations with 2 differnte calls to the GitHub API.
+- It returns `202 Accepted` when an invitation is sent to external users, allowing the `rest-dynamic-controller` to maintain proper resource state management ("pending" state in Collaborator custom resource).
 
 **Responses**:
 - `200 OK`: Collaborator permission updated
@@ -152,7 +154,7 @@ DELETE /repository/{owner}/{repo}/collaborators/{username}
 Removes a collaborator or cancels a pending invitation.
 
 **Why This Endpoint Exists**:
-- It provides unified handling for both removing active collaborators and canceling pending invitations with proper status code differentiation.
+- It provides unified handling for both removing active collaborators and canceling pending invitations with 2 different calls to the GitHub API.
 
 **Responses**:
 - `200 OK`: Collaborator removed
