@@ -1,12 +1,13 @@
-package repo
+package collaborator
 
 type RepoPermissions struct {
 	HTMLURL     string      `json:"html_url"`
-	ID          int         `json:"id"`
+	ID          int         `json:"id"` // user ID
 	Permission  string      `json:"permission"`
 	Permissions Permissions `json:"permissions"`
 	RoleName    string      `json:"role_name"`
 	User        User        `json:"user"`
+	Message     string      `json:"message"`
 }
 
 type User struct {
@@ -39,4 +40,12 @@ type Permissions struct {
 	Push     bool `json:"push"`
 	Triage   bool `json:"triage"`
 	Pull     bool `json:"pull"`
+}
+
+type Message struct {
+	Message string `json:"message"`
+}
+
+type Permission struct {
+	Permission string `json:"permission"`
 }

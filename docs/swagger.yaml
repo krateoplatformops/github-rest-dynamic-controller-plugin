@@ -1,6 +1,16 @@
 basePath: /
 definitions:
-  repo.Permissions:
+  collaborator.Message:
+    properties:
+      message:
+        type: string
+    type: object
+  collaborator.Permission:
+    properties:
+      permission:
+        type: string
+    type: object
+  collaborator.Permissions:
     properties:
       admin:
         type: boolean
@@ -13,22 +23,24 @@ definitions:
       triage:
         type: boolean
     type: object
-  repo.RepoPermissions:
+  collaborator.RepoPermissions:
     properties:
       html_url:
         type: string
       id:
         type: integer
+      message:
+        type: string
       permission:
         type: string
       permissions:
-        $ref: '#/definitions/repo.Permissions'
+        $ref: '#/definitions/collaborator.Permissions'
       role_name:
         type: string
       user:
-        $ref: '#/definitions/repo.User'
+        $ref: '#/definitions/collaborator.User'
     type: object
-  repo.User:
+  collaborator.User:
     properties:
       avatar_url:
         type: string
@@ -53,7 +65,7 @@ definitions:
       organizations_url:
         type: string
       permissions:
-        $ref: '#/definitions/repo.Permissions'
+        $ref: '#/definitions/collaborator.Permissions'
       received_events_url:
         type: string
       repos_url:
@@ -266,6 +278,119 @@ info:
   title: GitHub Plugin API for Krateo Operator Generator (KOG)
   version: "1.0"
 paths:
+  /repository/{owner}/{repo}/collaborators/{username}:
+    delete:
+      description: Remove a collaborator from repository or cancel a pending invitation
+      operationId: delete-repo-collaborator
+      parameters:
+      - description: Owner of the repository
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Name of the repository
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: Username of the collaborator to remove
+        in: path
+        name: username
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Collaborator removed successfully
+          schema:
+            $ref: '#/definitions/collaborator.Message'
+        "202":
+          description: Invitation cancelled successfully
+          schema:
+            $ref: '#/definitions/collaborator.Message'
+        "404":
+          description: User not found as collaborator or invitee
+          schema:
+            $ref: '#/definitions/collaborator.Message'
+      summary: Delete repository collaborator or cancel invitation
+    patch:
+      consumes:
+      - application/json
+      description: Update the permission of an existing collaborator or pending invitation
+      operationId: patch-repo-collaborator
+      parameters:
+      - description: Owner of the repository
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Name of the repository
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: Username of the collaborator
+        in: path
+        name: username
+        required: true
+        type: string
+      - description: New permission to set (`pull`, `push`, `admin`, `maintain`, `triage`)
+        in: body
+        name: permissions
+        required: true
+        schema:
+          $ref: '#/definitions/collaborator.Permission'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Permission updated successfully
+          schema:
+            $ref: '#/definitions/collaborator.Message'
+        "202":
+          description: Invitation permission updated
+          schema:
+            $ref: '#/definitions/collaborator.Message'
+      summary: Update repository collaborator permission or invitation
+    post:
+      consumes:
+      - application/json
+      description: Add a repository collaborator or invite a user to collaborate on
+        a repository
+      operationId: post-repo-collaborator
+      parameters:
+      - description: Owner of the repository
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Name of the repository
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: Username of the collaborator to add
+        in: path
+        name: username
+        required: true
+        type: string
+      - description: Permission to grant to the collaborator
+        in: body
+        name: permission
+        required: true
+        schema:
+          $ref: '#/definitions/collaborator.Permission'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Invitation sent to user
+          schema:
+            $ref: '#/definitions/collaborator.Message'
+        "204":
+          description: User already collaborator
+      summary: Add a repository collaborator
   /repository/{owner}/{repo}/collaborators/{username}/permission:
     get:
       description: Get the permission of a user in a repository
@@ -292,7 +417,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/repo.RepoPermissions'
+            $ref: '#/definitions/collaborator.RepoPermissions'
       summary: Get the permission of a user in a repository
   /teamrepository/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}:
     get:
