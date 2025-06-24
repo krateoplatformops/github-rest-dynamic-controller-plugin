@@ -1,6 +1,7 @@
 # Krateo Github Plugin for `rest-dynamic-controller`
 
-This web service addresses some inconsistencies in the GitHub API's. 
+This web service addresses some inconsistencies in the GitHub REST API's.
+The documentation of the GitHub REST API is available at [https://docs.github.com/en/rest](https://docs.github.com/en/rest?apiVersion=2022-11-28).
 This web service is written for [`rest-dynamic-controller`](https://github.com/krateoplatformops/rest-dynamic-controller/), the dynamic controller instaciated by [`oasgen-provider`](https://github.com/krateoplatformops/oasgen-provider).
 In particular, this plugin is design to work alongside the [`github-provider-kog`](https://github.com/krateoplatformops/github-provider-kog-chart).
 
@@ -9,10 +10,6 @@ In particular, this plugin is design to work alongside the [`github-provider-kog
 - [Summary](#summary)
 - [API Endpoints](#api-endpoints)
   - [Collaborator](#collaborator)
-    - [GET](#get)
-    - [POST](#post)
-    - [PATCH](#patch)
-    - [DELETE](#delete)
   - [TeamRepo](#teamrepo)
 - [Swagger Documentation](#swagger-documentation)
 - [Authentication](#authentication)
@@ -33,7 +30,7 @@ In addition, the response is adjusted to fix inconsistencies in the GitHub API r
 The `permissions`, `html_url` fields are also included at the root level of the response.
 
 - **Why is needed?**  
-After removing a collaborator from a repository, attempting to verify the status of the collaborator using the GitHub API endpoint `/repos/{owner}/{repo}/collaborators/{username}/permission` results in a 200 OK response instead of the expected 404 Not Found.
+After removing a collaborator from a repository, attempting to verify the status of the collaborator using the GitHub API endpoint `/repos/{owner}/{repo}/collaborators/{username}/permission` results in a `200 OK` response instead of the expected `404 Not Found`.
 
 - **Sample response**:
 ```json
@@ -90,10 +87,10 @@ After removing a collaborator from a repository, attempting to verify the status
 Add a repository collaborator with a specified permission level.
 If the user is not a member of the organization, an invitatation to be a repository collaborator is sent ("external collaborator").
 The GitHub API endpoint `PUT /repos/{owner}/{repo}/collaborators/{username}` already implements the dual functionality of adding a collaborator or sending an invitation to a user not in the organization.
-This handler change the status code of the response to 202 Accepted when an invitation is sent to a user not in the organization, instead of the default 201 Created response.
+This handler change the status code of the response to `202 Accepted` when an invitation is sent to a user not in the organization, instead of the default `201 Created` response.
 
 - **Why is needed?**
-This endpoint is needed to return a 202 Accepted response when an invitation is sent to a user not in the organization, instead of a 201 Created response.
+This endpoint is needed to return a `202 Accepted` response when an invitation is sent to a user not in the organization, instead of a `201 Created` response.
 This is used in the `rest-dynamic-controller` to keep the Collaborator custom resource in a "pending" state until the user accepts the invitation.
 
 #### PATCH
@@ -108,11 +105,11 @@ First, the handler checks if the user is a collaborator of the repository using 
 If the user is a collaborator, it proceeds to update the permission level using a PUT request to `/repos/{owner}/{repo}/collaborators/{username}` with the specified permission level in the request body.
 If the user is not a collaborator, it lists the repository invitations using a GET request to `/repos/{owner}/{repo}/invitations` and checks if the user is invited.
 If the user is invited, it updates the invitation's permission level using a PATCH request to `/repos/{owner}/{repo}/invitations/{invitation_id}` with the specified permission level in the request body.
-The handler also set the status code of the response to 202 Accepted when an invitation is updated.
+The handler also set the status code of the response to `202 Accepted` when an invitation is updated.
 
 - **Why is needed?**
 This endpoint is needed to differentiate between updateing a collaborator's permission level in a repository and updating the invitation's permission level for a user not in the organization.
-The 202 Accepted response is used in the `rest-dynamic-controller` to keep the Collaborator custom resource in a "pending" state until the user accepts the invitation.
+The `202 Accepted` response is used in the `rest-dynamic-controller` to keep the Collaborator custom resource in a "pending" state until the user accepts the invitation.
 
 #### DELETE
 - **Endpoint:**
@@ -138,9 +135,13 @@ This endpoint is needed to differentiate between removing a collaborator from a 
 
 - **Description:** 
 Retrieves the permission level of a specified team in a given repository. 
-The endpoint extracts the `organization`, `team_slug`, `owner`, and `repo` from the request path, logs the API call, and forwards the request to the GitHub API with the necessary headers. The response from GitHub is processed to adjust the repository permissions before being returned to the client.
+The endpoint extracts the `organization`, `team_slug`, `owner`, and `repo` from the request path, and forwards the request to the GitHub API with the necessary headers (`application/vnd.github.v3.repository+json` accept header). 
+The response from GitHub is processed to adjust the repository permissions before being returned. In particular, the `permission` field is adjusted to return `admin`, `push`, `pull`, `triage` or `maintain` instead of the legacy values of `admin`, `write`, `read`, `triage` or `maintain`.
 
 - **Why is needed:** 
+
+The endpoint is needed to set the accept header to `application/vnd.github.v3.repository+json` in order to retrieve the repository permissions for a team in a repository. Otherwise, the GitHub API returns a 204 No Content response if team has permission for the repository but media type hasn't been provded in the Accept header.
+In addition, the response is adjusted to fix inconsistencies in the GitHub API response (legacy issues) in the `permission` field.
 
 - **Sample response**:
 
@@ -231,9 +232,6 @@ The endpoint extracts the `organization`, `team_slug`, `owner`, and `repo` from 
   "watchers_count":0
 }   
 ```
-
-> [!NOTE]  
-> Since the root level field `permission` in the GitHub API response can be {`admin`, `write`, `read`}, the plugin will convert it using the `role_name` field which instead can be {`admin`, `maintain`, `push`, `triage`, `pull`}. The `owner` field is also adjusted to be just a string instead of an object. The `permissions` field (object) is not included in this response.
 
 ## Swagger Documentation
 
