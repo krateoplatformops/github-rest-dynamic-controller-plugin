@@ -46,7 +46,9 @@ Therefore, even if the user is invited to be an external collaborator, it will r
 - `repo` (string, required): Repository name  
 - `username` (string, required): Username to check permission for
 
-**Example response**:
+<details>
+<summary><b>Response example</b></summary>
+
 ```json
 {
   "html_url":"<REDACTED>",  // Adjusted field
@@ -91,6 +93,7 @@ Therefore, even if the user is invited to be an external collaborator, it will r
   }
 }
 ```
+</details>
 
 #### Add Repository Collaborator
 
@@ -201,7 +204,8 @@ It retrieves repository permissions for a specific team.
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
 
-**Sample response**:
+<details>
+<summary><b>Response example</b></summary>
 
 ```json
 {
@@ -290,6 +294,7 @@ It retrieves repository permissions for a specific team.
   "watchers_count":0
 }   
 ```
+</details>
 
 ## Swagger Documentation
 
